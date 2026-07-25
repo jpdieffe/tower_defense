@@ -110,14 +110,14 @@ which continue to level 5 — 8 towers but 16 distinct end-game builds.
 
 | Tower | Role | Fork A | Fork B |
 | --- | --- | --- | --- |
-| Arrow Nest | fast single target, hits air | **Ballista** – piercing line shot | **Volley Nest** – 3 targets at once |
-| Cannon | ground-only splash | **Mortar** – huge range & blast | **Flak Battery** – rapid, covers air |
-| Frost Spire | slowing pulse aura | **Glacier** – freezes non-bosses | **Permafrost** – wider, +25% damage taken |
-| Tesla Coil | chain lightning, shreds shields | **Overcharge** – 6 jumps, no falloff | **Ion Storm** – staggers, strips shields |
-| Venom Sprayer | poison that ignores armour | **Plague Vat** – corpses burst into clouds | **Acid Sprayer** – melts armour |
-| Sniper Nest | very long range, crits | **Executioner** – executes below 18% | **Marksman** – double rate & crit |
-| Flame Turret | short-range swarm clear | **Inferno** – damage ramps while firing | **Napalm** – leaves burning ground |
-| Beacon | support aura, never fires | **War Horn** – big damage/crit banner | **Mint** – generates gold |
+| Guard Tower | fast single target, hits air | **Ballista** – piercing line shot | **Longbow Battlements** – 3 targets at once |
+| Cannon Tower | ground-only splash | **Mortar Team** – huge range & blast | **Scattershot Bastion** – rapid, covers air |
+| Frost Ward | slowing pulse aura | **Glacial Prison** – freezes non-bosses | **Permafrost Shrine** – wider, +25% damage taken |
+| Arcane Tower | chain lightning, shreds wards | **Storm Crown** – 6 jumps, no falloff | **Mana Rift** – staggers, tears down barriers |
+| Plague Spire | blight that ignores armour | **Plague Cauldron** – corpses burst into clouds | **Blight Sprayer** – melts armour |
+| Hunter's Roost | very long range, crits | **Executioner** – executes below 18% | **Sharpshooter** – double rate & crit |
+| Burning Brazier | short-range swarm clear | **Inferno** – damage ramps while firing | **Emberfall** – leaves burning ground |
+| War Altar | support aura, never fires | **Horn of War** – big damage/crit banner | **Goblin Treasury** – generates gold |
 
 Each tower also has four targeting modes (First / Last / Strongest / Closest).
 
@@ -126,28 +126,28 @@ Each tower also has four targeting modes (First / Last / Strongest / Closest).
 Player-controlled units you move by tapping the map. They auto-attack, gain XP to level 10,
 have a passive and an active ability, and respawn on a timer if they die.
 
-- **Vanguard** — tank. Passive slows nearby enemies; **Shield Slam** stuns everything around him.
-- **Ranger** — ranged crit damage; **Arrow Storm** rains on an area you aim at.
-- **Pyromancer** — splash + burn; **Meteor** for huge burst plus burning ground.
-- **Tinkerer** — +12% gold and speeds up nearby towers; **Deploy Sentry** drops a temporary turret.
+- **Paladin** — tank. Passive slows nearby enemies; **Thunder Clap** stuns everything around him.
+- **Sentinel** — ranged crit damage; **Starfall** rains on an area you aim at.
+- **Archmage** — splash + burn; **Rain of Fire** for huge burst plus scorched ground.
+- **Tinker** — +12% gold and speeds up nearby towers; **Clockwork Sentry** drops a temporary turret.
 
 ### Relics and consumables
 
 Between waves a shared **Quartermaster** shop offers seeded stock (both players see the same
 offers, each can buy once). 12 stacking relics (`+damage`, `+range`, `+fire rate`, `+gold`,
 cheaper upgrades, stronger slows, stronger damage-over-time, crit, splash, ability cooldown,
-hero power, extra chain jumps) and 7 consumables (Meteor Scroll, Frost Nova, Gold Cache,
-Repair Kit, Time Warp, Turret Kit, Overload Rune).
+hero power, extra chain jumps) and 7 consumables (Scroll of Fire, Frost Nova, Chest of Gold,
+Scroll of Restoration, Sands of Time, Sentry Ward, Rune of Haste).
 
 ### Enemies and waves
 
-Endless procedurally generated waves — grunts, runners, swarmlings, armoured brutes,
-shield wardens, healing shamans, splitters, two kinds of flyer, summoning necromancers, and
-three rotating bosses. Waves roll modifiers (Hasted, Armoured, Shielded, Swarm,
-Regenerating) and every fifth wave is a boss. Three maps, three difficulties.
+Endless procedurally generated waves — ghouls, dire wolves, skeletons, armoured abominations,
+ward-bearing spirit wardens, healing shamans, bone golems, two kinds of flyer, summoning
+necromancers, and three rotating bosses. Waves roll modifiers (Hasted, Armoured, Shielded,
+Swarm, Regenerating) and every fifth wave is a boss. Three maps, three difficulties.
 
 **Co-op rules:** separate gold and separate tower ownership (so nobody spends your money),
-but a **shared pool of lives**. Both players must tap READY to call a wave early, which pays
+but a **shared pool of lives**. Every player must tap READY to call a wave early, which pays
 a bonus — so there is a real reason to talk to each other.
 
 ---

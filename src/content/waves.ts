@@ -31,20 +31,20 @@ interface PoolEntry {
 }
 
 const POOL: readonly PoolEntry[] = [
-  { defId: ENEMY.Grunt, cost: 10, minWave: 1, weight: 10, clump: 4 },
-  { defId: ENEMY.Runner, cost: 12, minWave: 2, weight: 8, clump: 5 },
-  { defId: ENEMY.Swarmling, cost: 5, minWave: 3, weight: 7, clump: 8 },
-  { defId: ENEMY.Wisp, cost: 18, minWave: 4, weight: 6, clump: 4 },
-  { defId: ENEMY.Brute, cost: 30, minWave: 6, weight: 6, clump: 2 },
-  { defId: ENEMY.Splitter, cost: 20, minWave: 8, weight: 5, clump: 3 },
-  { defId: ENEMY.Warden, cost: 34, minWave: 9, weight: 5, clump: 2 },
+  { defId: ENEMY.Ghoul, cost: 10, minWave: 1, weight: 10, clump: 4 },
+  { defId: ENEMY.DireWolf, cost: 12, minWave: 2, weight: 8, clump: 5 },
+  { defId: ENEMY.Skeleton, cost: 5, minWave: 3, weight: 7, clump: 8 },
+  { defId: ENEMY.Shade, cost: 18, minWave: 4, weight: 6, clump: 4 },
+  { defId: ENEMY.Abomination, cost: 30, minWave: 6, weight: 6, clump: 2 },
+  { defId: ENEMY.BoneGolem, cost: 20, minWave: 8, weight: 5, clump: 3 },
+  { defId: ENEMY.SpiritWarden, cost: 34, minWave: 9, weight: 5, clump: 2 },
   { defId: ENEMY.Shaman, cost: 30, minWave: 11, weight: 4, clump: 1 },
-  { defId: ENEMY.Gunship, cost: 46, minWave: 12, weight: 4, clump: 2 },
+  { defId: ENEMY.Gargoyle, cost: 46, minWave: 12, weight: 4, clump: 2 },
   { defId: ENEMY.Necromancer, cost: 38, minWave: 14, weight: 3, clump: 1 },
 ];
 
 const BOSS_ROTATION: readonly number[] = [
-  ENEMY.Juggernaut, ENEMY.SkyFortress, ENEMY.Titan,
+  ENEMY.Infernal, ENEMY.BoneDragon, ENEMY.ObsidianColossus,
 ];
 
 export interface WavePlan {

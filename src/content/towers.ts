@@ -126,14 +126,14 @@ export interface TowerDef {
 }
 
 export const TOWER = {
-  Arrow: 0,
+  Guard: 0,
   Cannon: 1,
   Frost: 2,
-  Tesla: 3,
-  Venom: 4,
-  Sniper: 5,
-  Flame: 6,
-  Beacon: 7,
+  Arcane: 3,
+  Plague: 4,
+  Hunter: 5,
+  Brazier: 6,
+  Altar: 7,
 } as const;
 
 function stats(over: Partial<TowerStats>): TowerStats {
@@ -142,9 +142,9 @@ function stats(over: Partial<TowerStats>): TowerStats {
 
 export const TOWERS: readonly TowerDef[] = [
   {
-    id: TOWER.Arrow,
-    key: 'arrow',
-    name: 'Arrow Nest',
+    id: TOWER.Guard,
+    key: 'guard-tower',
+    name: 'Guard Tower',
     role: 'Single target',
     desc: 'Cheap, quick and hits air. The backbone of any line.',
     cost: 70,
@@ -166,8 +166,8 @@ export const TOWERS: readonly TowerDef[] = [
         stats: { pierce: 4, projSpeed: cps(26), projKind: ProjKind.Slug },
       },
       {
-        key: 'volley', name: 'Volley Nest',
-        desc: 'Fires at three separate targets at once.',
+        key: 'battlements', name: 'Longbow Battlements',
+        desc: 'Looses arrows at three separate targets at once.',
         head: HEAD.quadRocket, headScale: 0.9,
         damagePct: -20, rangePct: 0, ratePct: 15,
         stats: { multiShot: 3 },
@@ -177,9 +177,9 @@ export const TOWERS: readonly TowerDef[] = [
   {
     id: TOWER.Cannon,
     key: 'cannon',
-    name: 'Cannon',
+    name: 'Cannon Tower',
     role: 'Splash',
-    desc: 'Lobs shells that shred packed ground troops. Cannot hit air.',
+    desc: 'Lobs shot that shreds packed ground troops. Cannot hit air.',
     cost: 110,
     upgradeCosts: [85, 150, 240, 380],
     growth: { damagePct: 52, rangePct: 6, ratePct: 8 },
@@ -192,15 +192,15 @@ export const TOWERS: readonly TowerDef[] = [
     }),
     branches: [
       {
-        key: 'mortar', name: 'Mortar',
+        key: 'mortar', name: 'Mortar Team',
         desc: 'Enormous range and blast radius, glacially slow.',
         head: HEAD.singleRocket, headScale: 1.05,
         damagePct: 85, rangePct: 115, ratePct: -45,
         stats: { splash: R(1.75), projSpeed: cps(7), projKind: ProjKind.Rocket },
       },
       {
-        key: 'flak', name: 'Flak Battery',
-        desc: 'Rapid airbursts that finally cover the sky.',
+        key: 'scattershot', name: 'Scattershot Bastion',
+        desc: 'Rapid bursts of chain shot that finally cover the sky.',
         head: HEAD.dualMissile, headScale: 0.9,
         damagePct: -25, rangePct: 15, ratePct: 70,
         stats: { targetsAir: true, splash: R(0.9), projSpeed: cps(15) },
@@ -210,7 +210,7 @@ export const TOWERS: readonly TowerDef[] = [
   {
     id: TOWER.Frost,
     key: 'frost',
-    name: 'Frost Spire',
+    name: 'Frost Ward',
     role: 'Control',
     desc: 'Pulses a chilling wave that slows everything around it.',
     cost: 95,
@@ -226,14 +226,14 @@ export const TOWERS: readonly TowerDef[] = [
     }),
     branches: [
       {
-        key: 'glacier', name: 'Glacier',
+        key: 'glacier', name: 'Glacial Prison',
         desc: 'Every pulse briefly freezes non-boss enemies solid.',
         head: HEAD.plateWide, headScale: 1.0,
         damagePct: 40, rangePct: 5, ratePct: -20,
         stats: { stunT: sec(0.45), slowPct: 40, slowT: sec(2.0) },
       },
       {
-        key: 'permafrost', name: 'Permafrost',
+        key: 'permafrost', name: 'Permafrost Shrine',
         desc: 'Wider chill, and frozen targets take extra damage from everyone.',
         head: HEAD.flaskRed, headScale: 0.9,
         damagePct: 0, rangePct: 42, ratePct: 0,
@@ -242,11 +242,11 @@ export const TOWERS: readonly TowerDef[] = [
     ],
   },
   {
-    id: TOWER.Tesla,
-    key: 'tesla',
-    name: 'Tesla Coil',
+    id: TOWER.Arcane,
+    key: 'arcane',
+    name: 'Arcane Tower',
     role: 'Chain',
-    desc: 'Arcs lightning between targets. Melts shields.',
+    desc: 'Arcs lightning between targets. Melts wards and barriers.',
     cost: 130,
     upgradeCosts: [100, 175, 280, 430],
     growth: { damagePct: 45, rangePct: 7, ratePct: 10 },
@@ -260,15 +260,15 @@ export const TOWERS: readonly TowerDef[] = [
     }),
     branches: [
       {
-        key: 'overcharge', name: 'Overcharge',
+        key: 'stormcrown', name: 'Storm Crown',
         desc: 'Six jumps and no damage falloff between them.',
         head: HEAD.dualBarrel, headScale: 1.0,
         damagePct: 35, rangePct: 10, ratePct: 0,
         stats: { chains: 6, chainFalloff: 0, chainRange: R(2.2) },
       },
       {
-        key: 'ion', name: 'Ion Storm',
-        desc: 'Shorter arcs, but every hit staggers and strips shields.',
+        key: 'manarift', name: 'Mana Rift',
+        desc: 'Shorter arcs, but every hit staggers and tears down barriers.',
         head: HEAD.heavyRound, headScale: 0.95,
         damagePct: 10, rangePct: 0, ratePct: 25,
         stats: { chains: 4, stunT: sec(0.3), shieldBreak: 100 },
@@ -276,11 +276,11 @@ export const TOWERS: readonly TowerDef[] = [
     ],
   },
   {
-    id: TOWER.Venom,
-    key: 'venom',
-    name: 'Venom Sprayer',
+    id: TOWER.Plague,
+    key: 'plague',
+    name: 'Plague Spire',
     role: 'Damage over time',
-    desc: 'Weak on impact, but the poison ignores armour entirely.',
+    desc: 'Weak on impact, but the blight ignores armour entirely.',
     cost: 90,
     upgradeCosts: [70, 125, 200, 320],
     growth: { damagePct: 42, rangePct: 8, ratePct: 12 },
@@ -294,7 +294,7 @@ export const TOWERS: readonly TowerDef[] = [
     }),
     branches: [
       {
-        key: 'plague', name: 'Plague Vat',
+        key: 'cauldron', name: 'Plague Cauldron',
         desc: 'Poisoned victims burst into a lingering cloud on death.',
         head: HEAD.flaskRed, headScale: 1.0,
         damagePct: 20, rangePct: 10, ratePct: 0,
@@ -305,8 +305,8 @@ export const TOWERS: readonly TowerDef[] = [
         },
       },
       {
-        key: 'acid', name: 'Acid Sprayer',
-        desc: 'Splashing acid melts armour clean off.',
+        key: 'blight', name: 'Blight Sprayer',
+        desc: 'Splashing blight melts armour clean off.',
         head: HEAD.dualMissile, headScale: 0.85,
         damagePct: 25, rangePct: 5, ratePct: 10,
         stats: { armorShred: 5, splash: R(0.95), poisonDps: 20 },
@@ -314,9 +314,9 @@ export const TOWERS: readonly TowerDef[] = [
     ],
   },
   {
-    id: TOWER.Sniper,
-    key: 'sniper',
-    name: 'Sniper Nest',
+    id: TOWER.Hunter,
+    key: 'hunter',
+    name: "Hunter's Roost",
     role: 'Elite killer',
     desc: 'Reaches almost the whole map and prefers the biggest target.',
     cost: 150,
@@ -339,7 +339,7 @@ export const TOWERS: readonly TowerDef[] = [
         stats: { executePct: 18 },
       },
       {
-        key: 'marksman', name: 'Marksman',
+        key: 'marksman', name: 'Sharpshooter',
         desc: 'Half the reload, double the crits.',
         head: HEAD.dualBarrel, headScale: 0.95,
         damagePct: -10, rangePct: 0, ratePct: 95,
@@ -348,9 +348,9 @@ export const TOWERS: readonly TowerDef[] = [
     ],
   },
   {
-    id: TOWER.Flame,
-    key: 'flame',
-    name: 'Flame Turret',
+    id: TOWER.Brazier,
+    key: 'brazier',
+    name: 'Burning Brazier',
     role: 'Swarm clear',
     desc: 'Short ranged, relentless, and it sets everything on fire.',
     cost: 100,
@@ -373,7 +373,7 @@ export const TOWERS: readonly TowerDef[] = [
         stats: { ramp: 120, burnDps: 18 },
       },
       {
-        key: 'napalm', name: 'Napalm Thrower',
+        key: 'emberfall', name: 'Emberfall',
         desc: 'Leaves burning ground that keeps working after the wave moves on.',
         head: HEAD.quadRocket, headScale: 0.95,
         damagePct: 0, rangePct: 20, ratePct: -25,
@@ -385,9 +385,9 @@ export const TOWERS: readonly TowerDef[] = [
     ],
   },
   {
-    id: TOWER.Beacon,
-    key: 'beacon',
-    name: 'Beacon',
+    id: TOWER.Altar,
+    key: 'altar',
+    name: 'War Altar',
     role: 'Support',
     desc: 'Never fires a shot - just makes every tower around it better.',
     cost: 120,
@@ -403,15 +403,15 @@ export const TOWERS: readonly TowerDef[] = [
     }),
     branches: [
       {
-        key: 'warhorn', name: 'War Horn',
+        key: 'warhorn', name: 'Horn of War',
         desc: 'A huge damage and crit banner for everything nearby.',
         head: HEAD.tripleSlot, headScale: 0.95,
         damagePct: 0, rangePct: 10, ratePct: 0,
         stats: { auraDamagePct: 38, auraCritPct: 12, auraRatePct: 12 },
       },
       {
-        key: 'mint', name: 'Mint',
-        desc: 'Prints gold for its owner and keeps the neighbours firing fast.',
+        key: 'treasury', name: 'Goblin Treasury',
+        desc: 'Mints gold for its owner and keeps the neighbours firing fast.',
         head: HEAD.flaskGreen, headScale: 0.95,
         damagePct: 0, rangePct: 20, ratePct: 0,
         stats: { auraRatePct: 22, auraDamagePct: 10, income: 6 },

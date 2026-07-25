@@ -25,7 +25,7 @@ export function renderTitle(root: HTMLElement, h: TitleHandlers): void {
           'div',
           { class: 'title' },
           el('h1', {}, 'BULWARK'),
-          el('p', {}, 'Up to three players. One keep. Endless waves.'),
+          el('p', {}, 'Up to three players. One keep. The Scourge never stops.'),
         ),
         tapButton('btn primary', h.onHost, '🤝 Host a co-op game'),
         tapButton('btn warm', h.onJoin, '🔗 Join with a code'),

@@ -697,7 +697,7 @@ function enemyAbilities(ctx: Ctx): void {
       emit(ctx, EventKind.HeroAbility, e.x, e.y, -2, 0, 0);
     } else if (d.ability === EnemyAbility.Summon) {
       for (let i = 0; i < d.abilityPower; i++) {
-        const spawn = spawnEnemy(ctx, ENEMY.Swarmling, e.lane, e.wave,
+        const spawn = spawnEnemy(ctx, ENEMY.Skeleton, e.lane, e.wave,
           Math.max(60, Math.floor(e.maxHp * 8 / 100)), WaveMod.None, false);
         spawn.x = e.x;
         spawn.y = e.y;
@@ -862,7 +862,7 @@ function killEnemy(ctx: Ctx, e: Enemy, owner: number): void {
 
   if (d.ability === EnemyAbility.Split) {
     for (let i = 0; i < d.abilityPower; i++) {
-      const sp = spawnEnemy(ctx, ENEMY.Swarmling, e.lane, e.wave,
+      const sp = spawnEnemy(ctx, ENEMY.Skeleton, e.lane, e.wave,
         Math.max(80, Math.floor((e.maxHp * 25) / 100)), e.mod, false);
       sp.x = e.x + (i === 0 ? fx(0.25) : fx(-0.25));
       sp.y = e.y;
@@ -1401,7 +1401,7 @@ function spawnSentry(ctx: Ctx, owner: number, x: Fx, y: Fx, duration: number): v
   const t: Tower = {
     id: nextId(s),
     owner,
-    defId: TOWER.Arrow,
+    defId: TOWER.Guard,
     branch: 2,
     level: 4,
     cx, cy,
@@ -1420,7 +1420,7 @@ function spawnSentry(ctx: Ctx, owner: number, x: Fx, y: Fx, duration: number): v
     pulse: 0,
   };
   s.towers.push(t);
-  emit(ctx, EventKind.TowerBuilt, t.x, t.y, TOWER.Arrow, 1, owner);
+  emit(ctx, EventKind.TowerBuilt, t.x, t.y, TOWER.Guard, 1, owner);
 }
 
 // ============================================================== ground effects
