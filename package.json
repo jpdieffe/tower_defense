@@ -1,0 +1,22 @@
+{
+  "name": "bulwark-coop-td",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Bulwark — a peer-to-peer co-op tower defense game for mobile browsers, built on a deterministic lockstep simulation.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "check:sim": "node scripts/check-sim.mjs",
+    "assets": "node scripts/fetch-assets.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  },
+  "dependencies": {
+    "peerjs": "^1.5.4"
+  }
+}
