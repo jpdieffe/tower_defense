@@ -16,14 +16,16 @@ import { Phase, type GameState, type SimOutput } from '../sim/types';
 
 const TICKS = 4000;
 
-function makeConfig(seed: number, mapId = 0): MatchConfig {
+/** The harness drives a full room: host plus two guests. */
+const PLAYER_COUNT = 3;
+
+function makeConfig(seed: number, mapId = 0, playerCount = PLAYER_COUNT): MatchConfig {
+  const players = [];
+  for (let i = 0; i < playerCount; i++) players.push({ name: `P${i + 1}`, heroId: i });
   return {
     seed,
     mapId,
-    players: [
-      { name: 'P1', heroId: 0 },
-      { name: 'P2', heroId: 1 },
-    ],
+    players,
     startGold: 400,
     startLives: 0,
     difficulty: 0,
@@ -38,9 +40,10 @@ function scriptedCommands(tick: number, state: GameState): Command[] {
   const out: Command[] = [];
   const rt = buildMapRuntime(state.mapId);
   const def = rt.def;
+  const np = state.players.length;
 
   if (tick % 37 === 0) {
-    for (let p = 0; p < 2; p++) {
+    for (let p = 0; p < np; p++) {
       const player = state.players[p];
       // Deterministic scan for the first free buildable cell.
       const towerType = TOWERS[(tick / 37 + p * 3) % TOWERS.length | 0];
@@ -59,7 +62,7 @@ function scriptedCommands(tick: number, state: GameState): Command[] {
   }
 
   if (tick % 53 === 0) {
-    for (let p = 0; p < 2; p++) {
+    for (let p = 0; p < np; p++) {
       const mine = state.towers.filter((t) => t.owner === p && t.temp === 0);
       if (mine.length === 0) continue;
       const t = mine[(tick / 53) % mine.length | 0];
@@ -69,7 +72,7 @@ function scriptedCommands(tick: number, state: GameState): Command[] {
   }
 
   if (tick % 61 === 0) {
-    for (let p = 0; p < 2; p++) {
+    for (let p = 0; p < np; p++) {
       const x = fx(2 + ((tick / 61 + p * 5) % (def.w - 4)));
       const y = fx(3 + ((tick / 61 + p * 9) % (def.h - 6)));
       out.push(moveHero(p, x, y));
@@ -78,7 +81,7 @@ function scriptedCommands(tick: number, state: GameState): Command[] {
 
   // Keep the waves flowing (ready up after a short build window).
   if (state.phase === Phase.Build && state.phaseTimer < 90) {
-    for (let p = 0; p < 2; p++) {
+    for (let p = 0; p < np; p++) {
       if (!state.players[p].ready) out.push(toggleReady(p));
     }
   }
@@ -96,8 +99,8 @@ interface RunResult {
   peakEnemies: number;
 }
 
-function run(seed: number, mapId: number, ticks = TICKS): RunResult {
-  const state = createState(makeConfig(seed, mapId));
+function run(seed: number, mapId: number, ticks = TICKS, playerCount = PLAYER_COUNT): RunResult {
+  const state = createState(makeConfig(seed, mapId, playerCount));
   const out: SimOutput = { events: [] };
   const hashes: number[] = [];
   let peakEnemies = 0;

@@ -1,7 +1,10 @@
 import type { MatchConfig } from '../sim/state';
 import type { GameState } from '../sim/types';
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
+
+/** Host plus two guests. The star topology below is sized for exactly this. */
+export const MAX_PLAYERS = 3;
 
 export interface LobbyInfo {
   name: string;
@@ -9,22 +12,47 @@ export interface LobbyInfo {
   ready: boolean;
 }
 
+/**
+ * A lobby seat. `slot` is stable for as long as a client stays connected, and
+ * is what the host stamps onto that client's packets.
+ */
+export interface RosterEntry extends LobbyInfo {
+  slot: number;
+}
+
 export type NetMessage =
   | { t: 'hello'; v: number; name: string }
-  | { t: 'lobby'; players: LobbyInfo[]; mapId: number; difficulty: number; hostReady: boolean }
-  | { t: 'pick'; heroId: number; name: string; ready: boolean }
+  /** Host -> one guest, first thing after the channel opens. */
+  | { t: 'welcome'; v: number; slot: number }
+  | { t: 'lobby'; roster: RosterEntry[]; mapId: number; difficulty: number }
+  | { t: 'pick'; from: number; heroId: number; name: string; ready: boolean }
+  /**
+   * Slots are kept dense (the host compacts them when someone leaves), so a
+   * client's in-match player index is simply its lobby slot.
+   */
   | { t: 'start'; match: MatchConfig; inputDelay: number }
   /** Commands for a future tick. Sent every tick, even when empty. */
-  | { t: 'inp'; k: number; c: number[][] }
-  | { t: 'hash'; k: number; h: number }
-  | { t: 'ping'; s: number }
-  | { t: 'pong'; s: number }
+  | { t: 'inp'; from: number; k: number; c: number[][] }
+  | { t: 'hash'; from: number; k: number; h: number }
+  | { t: 'ping'; from: number; s: number }
+  | { t: 'pong'; from: number; s: number }
   | { t: 'snap'; k: number; s: GameState }
   | { t: 'bye'; why: string };
 
+/** Messages the host forwards between guests so the mesh looks fully connected. */
+export function isRelayed(msg: NetMessage): boolean {
+  return msg.t === 'inp' || msg.t === 'hash';
+}
+
 export interface Transport {
   readonly open: boolean;
+  /** Send to every other participant. */
   send(msg: NetMessage): void;
+  /**
+   * Send to a single participant. Guests can only address the host, so for
+   * them this is the same as `send`.
+   */
+  sendTo(slot: number, msg: NetMessage): void;
   close(): void;
   onMessage: ((msg: NetMessage) => void) | null;
   onOpen: (() => void) | null;

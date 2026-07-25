@@ -73,8 +73,8 @@ export class GameScreen {
     waveVal: HTMLElement;
     timerVal: HTMLElement;
     goldSelf: HTMLElement;
-    goldMate: HTMLElement | null;
-    matePill: HTMLElement | null;
+    /** One entry per ally, in player-index order. */
+    matePills: { idx: number; gold: HTMLElement }[];
     netPill: HTMLElement;
     banner: HTMLElement;
     warning: HTMLElement;
@@ -357,17 +357,20 @@ export class GameScreen {
     const netPill = el('div', { class: 'pill' }, '');
 
     const selfColor = PLAYER_COLORS[this.opts.localPlayer];
-    let goldMate: HTMLElement | null = null;
-    let matePill: HTMLElement | null = null;
+    const matePills: { idx: number; gold: HTMLElement }[] = [];
+    const mateNodes: HTMLElement[] = [];
     if (this.opts.multiplayer) {
-      goldMate = el('span', {}, '0');
-      const mateIdx = this.opts.localPlayer === 0 ? 1 : 0;
-      matePill = el(
-        'div',
-        { class: `pill ${mateIdx === 0 ? 'p1' : 'p2'}` },
-        el('small', {}, this.opts.playerNames[mateIdx] ?? 'Ally'),
-        goldMate,
-      );
+      for (let idx = 0; idx < this.state.players.length; idx++) {
+        if (idx === this.opts.localPlayer) continue;
+        const gold = el('span', {}, '0');
+        mateNodes.push(el(
+          'div',
+          { class: `pill p${idx + 1}` },
+          el('small', {}, this.opts.playerNames[idx] ?? 'Ally'),
+          gold,
+        ));
+        matePills.push({ idx, gold });
+      }
     }
 
     const top = el(
@@ -377,10 +380,10 @@ export class GameScreen {
       el('div', { class: 'pill' }, el('small', {}, 'Wave'), waveVal),
       el('div', { class: 'pill' }, timerVal),
       el('div', { class: 'spacer' }),
-      matePill,
+      ...mateNodes,
       el(
         'div',
-        { class: `pill ${this.opts.localPlayer === 0 ? 'p1' : 'p2'}` },
+        { class: `pill p${this.opts.localPlayer + 1}` },
         el('small', { style: `color:${selfColor}` }, 'You'),
         '💰',
         goldSelf,
@@ -439,7 +442,7 @@ export class GameScreen {
     this.root.appendChild(bottom);
 
     this.hud = {
-      livesVal, waveVal, timerVal, goldSelf, goldMate, matePill, netPill,
+      livesVal, waveVal, timerVal, goldSelf, matePills, netPill,
       banner, warning, buildBar, actionRow, readyBtn, inspector, towerButtons,
       abilityBtn, abilityCd, itemsWrap, shopBtn,
     };
@@ -455,9 +458,9 @@ export class GameScreen {
     setText(this.hud.livesVal, String(Math.max(0, s.lives)));
     setText(this.hud.waveVal, String(s.wave));
     setText(this.hud.goldSelf, formatNumber(me.gold));
-    if (this.hud.goldMate) {
-      const mate = s.players[this.opts.localPlayer === 0 ? 1 : 0];
-      if (mate) setText(this.hud.goldMate, `💰${formatNumber(mate.gold)}`);
+    for (const pill of this.hud.matePills) {
+      const mate = s.players[pill.idx];
+      if (mate) setText(pill.gold, `💰${formatNumber(mate.gold)}`);
     }
 
     if (s.phase === Phase.Build) {

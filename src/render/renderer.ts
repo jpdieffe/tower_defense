@@ -12,8 +12,12 @@ import {
 import { atlas } from './atlas';
 import { Fx } from './fx';
 
-export const PLAYER_COLORS = ['#4aa3ff', '#ff9a3c'];
-export const PLAYER_GLOW = ['rgba(74,163,255,0.55)', 'rgba(255,154,60,0.55)'];
+export const PLAYER_COLORS = ['#4aa3ff', '#ff9a3c', '#57e08a'];
+export const PLAYER_GLOW = [
+  'rgba(74,163,255,0.55)',
+  'rgba(255,154,60,0.55)',
+  'rgba(87,224,138,0.55)',
+];
 
 const DMG_COLORS = ['#ffffff', '#ff8a3c', '#7ee8ff', '#c39cff', '#9ff05a', '#ffd447'];
 

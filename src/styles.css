@@ -344,6 +344,10 @@ input.code {
   border-color: rgba(255, 154, 60, 0.6);
 }
 
+.pill.p3 {
+  border-color: rgba(87, 224, 138, 0.6);
+}
+
 .pill.danger {
   border-color: var(--danger);
   color: var(--danger);

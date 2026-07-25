@@ -3,11 +3,13 @@ import './styles.css';
 import { audio } from './audio/audio';
 import { music } from './audio/music';
 import { atlas } from './render/atlas';
+import { HEROES } from './content/heroes';
 import { inputDelayForRtt, Lockstep, soloLockstep } from './net/lockstep';
 import {
-  makeRoomCode, normaliseCode, randomSeed, type LobbyInfo, type NetMessage, type Transport,
+  makeRoomCode, MAX_PLAYERS, normaliseCode, PROTOCOL_VERSION, randomSeed,
+  type LobbyInfo, type NetMessage, type RosterEntry, type Transport,
 } from './net/protocol';
-import { hostRoom, joinRoom, type HostHandle } from './net/peer';
+import { hostRoom, joinRoom, type HostTransport } from './net/peer';
 import { createState, type MatchConfig } from './sim/state';
 import { GameScreen } from './ui/game';
 import {
@@ -16,8 +18,13 @@ import {
 } from './ui/menus';
 import { clear, el, toast } from './ui/dom';
 
-const PLAYER_NAMES = ['Player 1 (blue)', 'Player 2 (orange)'];
+const PLAYER_NAMES = ['Player 1 (blue)', 'Player 2 (orange)', 'Player 3 (green)'];
 const START_GOLD = 280;
+const HERO_COUNT = HEROES.length;
+
+function emptySeat(slot: number): LobbyInfo {
+  return { name: PLAYER_NAMES[slot] ?? `Player ${slot + 1}`, heroId: slot, ready: false };
+}
 
 type Screen = 'title' | 'solo' | 'host' | 'join' | 'lobby' | 'game' | 'help';
 
@@ -29,15 +36,24 @@ class App {
   private game: GameScreen | null = null;
 
   private transport: Transport | null = null;
-  private handle: HostHandle | null = null;
+  private handle: { cancel(): void } | null = null;
+  /** Set only when we are the host, so the room can be closed to late joiners. */
+  private room: HostTransport | null = null;
   private isHost = false;
   private roomCode = '';
   private pingTimer = 0;
   private rttMs = 0;
+  /** Round trip to each peer; the match is paced by the worst of them. */
+  private peerRtt = new Map<number, number>();
+
+  /** Our lobby slot, which is also our in-match player index. */
+  private slot = 0;
+  /** Every seat in the room, dense and indexed by slot. Seat 0 is the host. */
+  private roster: LobbyInfo[] = [emptySeat(0)];
+  /** Signature of the last lobby broadcast, so re-announcements cannot loop. */
+  private lastLobbySig = '';
 
   private setup = { heroId: 0, mapId: 0, difficulty: 0 };
-  private peer: LobbyInfo = { name: PLAYER_NAMES[1], heroId: 1, ready: false };
-  private selfReady = false;
   private lastMatch: { cfg: MatchConfig; inputDelay: number } | null = null;
   private joinError: string | null = null;
   private joinStatus: string | null = null;
@@ -145,26 +161,65 @@ class App {
   private startHosting(): void {
     this.teardownNet();
     this.isHost = true;
+    this.slot = 0;
     this.roomCode = makeRoomCode(4);
+    this.roster = [emptySeat(0)];
+    this.setup.heroId = 0;
+    this.roster[0].heroId = 0;
     this.screen = 'host';
     renderHostWaiting(this.ui, this.roomCode, () => this.showTitle(), null);
 
-    this.handle = hostRoom(
-      this.roomCode,
-      (t) => this.onConnected(t),
-      (msg) => {
+    const room = hostRoom(this.roomCode, {
+      onRoster: (guestSlots) => this.onGuestsChanged(guestSlots),
+      onError: (msg) => {
         if (this.screen === 'host') {
           renderHostWaiting(this.ui, this.roomCode, () => this.showTitle(), msg);
         }
       },
-    );
+    });
+    this.handle = room;
+    this.room = room.transport;
+    this.attachTransport(room.transport);
+    this.startPingLoop();
+  }
+
+  /**
+   * A guest joined or left. Slots are kept dense by the transport, so we just
+   * resize the roster and let everyone re-announce themselves.
+   */
+  private onGuestsChanged(guestSlots: number[]): void {
+    const previous = this.roster;
+    const next: LobbyInfo[] = [previous[0] ?? emptySeat(0)];
+    for (const slot of guestSlots) next[slot] = previous[slot] ?? emptySeat(slot);
+    for (let i = 1; i <= guestSlots.length; i++) next[i] = next[i] ?? emptySeat(i);
+    this.roster = next.slice(0, guestSlots.length + 1);
+
+    if (this.game) {
+      // Losing anyone mid-match means the remaining players can never complete
+      // a tick, so end it for everybody rather than freezing them.
+      if (this.roster.length < (this.lastMatch?.cfg.players.length ?? 2)) {
+        this.transport?.send({ t: 'bye', why: 'A player left the match.' });
+        this.onDisconnected('A player left the match.');
+      }
+      return;
+    }
+
+    if (guestSlots.length === 0) {
+      this.screen = 'host';
+      renderHostWaiting(this.ui, this.roomCode, () => this.showTitle(), null);
+      return;
+    }
+    this.broadcastLobby(true);
+    this.showLobby();
   }
 
   private doJoin(rawCode: string): void {
     const code = normaliseCode(rawCode);
     this.teardownNet();
     this.isHost = false;
+    this.slot = 1;
     this.roomCode = code;
+    this.roster = [emptySeat(0), emptySeat(1)];
     this.joinError = null;
     this.joinStatus = `Connecting to ${code}…`;
     this.showJoin(code);
@@ -180,21 +235,55 @@ class App {
     );
   }
 
-  private onConnected(t: Transport): void {
+  private attachTransport(t: Transport): void {
     this.transport = t;
-    this.joinStatus = null;
     t.onMessage = (msg) => this.onMessage(msg);
     t.onClose = (why) => this.onDisconnected(why);
     t.onError = () => { /* surfaced via onClose */ };
+  }
 
-    t.send({ t: 'hello', v: 3, name: PLAYER_NAMES[this.isHost ? 0 : 1] });
-    if (this.isHost) this.setup.heroId = 0;
-    else if (this.setup.heroId === this.peer.heroId) this.setup.heroId = 1;
-
-    this.selfReady = false;
-    this.peer.ready = false;
+  /** Guest side: the channel to the host is open. */
+  private onConnected(t: Transport): void {
+    this.attachTransport(t);
+    this.joinStatus = 'Joining the room…';
+    if (this.screen === 'join') this.showJoin(this.roomCode);
+    t.send({ t: 'hello', v: PROTOCOL_VERSION, name: PLAYER_NAMES[1] });
     this.startPingLoop();
+  }
+
+  /** Guest side: the host told us which seat we are in. */
+  private onWelcome(slot: number): void {
+    this.slot = slot;
+    this.joinStatus = null;
+    if (this.roster.length <= slot) {
+      while (this.roster.length <= slot) this.roster.push(emptySeat(this.roster.length));
+    }
+    this.setup.heroId = this.avoidHeroClash(this.setup.heroId);
+    this.roster[slot] = { name: this.myName(), heroId: this.setup.heroId, ready: false };
+    this.announcePick();
     this.showLobby();
+  }
+
+  private myName(): string {
+    return PLAYER_NAMES[this.slot] ?? `Player ${this.slot + 1}`;
+  }
+
+  private me(): LobbyInfo {
+    let seat = this.roster[this.slot];
+    if (!seat) {
+      seat = emptySeat(this.slot);
+      this.roster[this.slot] = seat;
+    }
+    return seat;
+  }
+
+  /** Heroes are exclusive, so slide off one an ally already claimed. */
+  private avoidHeroClash(heroId: number): number {
+    const taken = new Set<number>();
+    this.roster.forEach((p, i) => { if (i !== this.slot && p) taken.add(p.heroId); });
+    if (!taken.has(heroId)) return heroId;
+    for (let id = 0; id < HERO_COUNT; id++) if (!taken.has(id)) return id;
+    return heroId;
   }
 
   private onDisconnected(why: string): void {
@@ -213,7 +302,7 @@ class App {
     window.clearInterval(this.pingTimer);
     this.pingTimer = window.setInterval(() => {
       if (this.game) return; // the lockstep driver takes over in-match
-      this.transport?.send({ t: 'ping', s: performance.now() });
+      this.transport?.send({ t: 'ping', from: this.slot, s: performance.now() });
     }, 1000);
   }
 
@@ -229,81 +318,98 @@ class App {
     this.transport?.close();
     this.handle = null;
     this.transport = null;
+    this.room = null;
+    this.lastLobbySig = '';
+    this.peerRtt.clear();
+    this.rttMs = 0;
   }
 
   // ================================================================ lobby
 
   private showLobby(): void {
     this.screen = 'lobby';
+    const me = this.me();
     const model: LobbyModel = {
       code: this.roomCode,
       isHost: this.isHost,
-      selfName: PLAYER_NAMES[this.isHost ? 0 : 1],
-      peerName: PLAYER_NAMES[this.isHost ? 1 : 0],
-      selfHero: this.setup.heroId,
-      peerHero: this.peer.heroId,
-      selfReady: this.selfReady,
-      peerReady: this.peer.ready,
-      mapId: this.setup.mapId,
-      difficulty: this.setup.difficulty,
+      selfSlot: this.slot,
+      seats: this.roster.map((p, i) => ({ slot: i, name: p.name, ready: p.ready })),
+      freeSeats: this.isHost ? MAX_PLAYERS - this.roster.length : 0,
       rttMs: this.rttMs,
     };
 
-    const bothReady = this.selfReady && this.peer.ready;
+    const everyoneReady = this.roster.length > 1 && this.roster.every((p) => p.ready);
     const confirmLabel = this.isHost
-      ? (bothReady ? '▶ Start the battle' : (this.selfReady ? 'Waiting for your partner…' : 'Ready up'))
-      : (this.selfReady ? 'Waiting for the host…' : 'Ready up');
+      ? (everyoneReady ? '▶ Start the battle' : (me.ready ? 'Waiting for your allies…' : 'Ready up'))
+      : (me.ready ? 'Waiting for the host…' : 'Ready up');
+
+    const takenHeroIds = this.roster
+      .filter((_, i) => i !== this.slot)
+      .map((p) => p.heroId);
 
     renderSetup(this.ui, {
       title: 'Co-op lobby',
       confirmLabel,
       model: this.setup,
       canEditMap: this.isHost,
-      takenHeroId: this.peer.heroId,
+      takenHeroIds,
       extra: lobbyStatusCard(model),
-      onChange: () => this.broadcastLobby(),
+      onChange: () => this.announcePick(),
       onBack: () => this.showTitle(),
       onConfirm: () => {
-        if (this.isHost && bothReady) {
+        if (this.isHost && everyoneReady) {
           this.hostStartMatch();
           return;
         }
-        this.selfReady = !this.selfReady;
-        this.broadcastLobby();
+        me.ready = !me.ready;
+        this.announcePick();
         this.showLobby();
       },
     });
   }
 
-  private broadcastLobby(): void {
+  /** Publish our own seat, and (as host) the whole roster. */
+  private announcePick(): void {
+    const me = this.me();
+    me.heroId = this.setup.heroId;
+    me.name = this.myName();
+    if (this.isHost) {
+      this.broadcastLobby(false);
+      return;
+    }
     this.transport?.send({
       t: 'pick',
-      heroId: this.setup.heroId,
-      name: PLAYER_NAMES[this.isHost ? 0 : 1],
-      ready: this.selfReady,
+      from: this.slot,
+      heroId: me.heroId,
+      name: me.name,
+      ready: me.ready,
     });
-    if (this.isHost) {
-      this.transport?.send({
-        t: 'lobby',
-        players: [
-          { name: PLAYER_NAMES[0], heroId: this.setup.heroId, ready: this.selfReady },
-          this.peer,
-        ],
-        mapId: this.setup.mapId,
-        difficulty: this.setup.difficulty,
-        hostReady: this.selfReady,
-      });
-    }
+  }
+
+  /**
+   * Host only. Guests answer a lobby update with their own `pick`, so this is
+   * skipped when nothing actually changed - otherwise the two would ping-pong
+   * forever.
+   */
+  private broadcastLobby(force: boolean): void {
+    if (!this.isHost) return;
+    const roster: RosterEntry[] = this.roster.map((p, i) => ({ ...p, slot: i }));
+    const sig = JSON.stringify([roster, this.setup.mapId, this.setup.difficulty]);
+    if (!force && sig === this.lastLobbySig) return;
+    this.lastLobbySig = sig;
+    this.transport?.send({
+      t: 'lobby',
+      roster,
+      mapId: this.setup.mapId,
+      difficulty: this.setup.difficulty,
+    });
   }
 
   private hostStartMatch(): void {
     const cfg: MatchConfig = {
       seed: randomSeed(),
       mapId: this.setup.mapId,
-      players: [
-        { name: PLAYER_NAMES[0], heroId: this.setup.heroId },
-        { name: PLAYER_NAMES[1], heroId: this.peer.heroId },
-      ],
+      players: this.roster.map((p, i) => ({ name: PLAYER_NAMES[i] ?? p.name, heroId: p.heroId })),
       startGold: START_GOLD,
       startLives: 0,
       difficulty: this.setup.difficulty,
@@ -315,10 +421,11 @@ class App {
 
   private beginNetworkedMatch(cfg: MatchConfig, inputDelay: number): void {
     this.lastMatch = { cfg, inputDelay };
-    const local = this.isHost ? 0 : 1;
+    this.room?.lock();
+    const local = Math.min(this.slot, cfg.players.length - 1);
     const ls = new Lockstep(createState(cfg), this.transport, {
       localPlayer: local,
-      playerCount: 2,
+      playerCount: cfg.players.length,
       inputDelay,
       isHost: this.isHost,
     });
@@ -378,40 +485,59 @@ class App {
   private onMessage(msg: NetMessage): void {
     switch (msg.t) {
       case 'hello':
-        this.peer.name = msg.name;
-        if (this.isHost) this.broadcastLobby();
+        // The host answers with the full picture; the guest's seat number was
+        // already sent by the transport as `welcome`.
+        if (this.isHost) this.broadcastLobby(true);
         break;
 
-      case 'pick':
-        this.peer.heroId = msg.heroId;
-        this.peer.name = msg.name;
-        this.peer.ready = msg.ready;
+      case 'welcome':
+        if (!this.isHost) this.onWelcome(msg.slot);
+        break;
+
+      case 'pick': {
+        if (!this.isHost) break;
+        const seat = this.roster[msg.from];
+        if (!seat || msg.from === this.slot) break;
+        seat.heroId = msg.heroId;
+        seat.name = msg.name;
+        seat.ready = msg.ready;
+        this.broadcastLobby(false);
         if (this.screen === 'lobby') this.showLobby();
         break;
+      }
 
-      case 'lobby':
-        if (!this.isHost) {
-          const host = msg.players[0];
-          this.peer.heroId = host.heroId;
-          this.peer.name = host.name;
-          this.peer.ready = msg.hostReady;
-          this.setup.mapId = msg.mapId;
-          this.setup.difficulty = msg.difficulty;
-          if (this.screen === 'lobby') this.showLobby();
+      case 'lobby': {
+        if (this.isHost) break;
+        this.roster = msg.roster.map((p) => ({ name: p.name, heroId: p.heroId, ready: p.ready }));
+        this.setup.mapId = msg.mapId;
+        this.setup.difficulty = msg.difficulty;
+        // Our own seat is authoritative locally: re-assert it so the host's
+        // view converges even if our last pick crossed with this update.
+        const me = this.me();
+        this.setup.heroId = this.avoidHeroClash(this.setup.heroId);
+        if (me.heroId !== this.setup.heroId || me.name !== this.myName()) {
+          me.heroId = this.setup.heroId;
+          me.name = this.myName();
+          this.announcePick();
         }
+        if (this.screen === 'lobby') this.showLobby();
+        else if (this.screen === 'join') this.showLobby();
         break;
+      }
 
       case 'start':
         if (!this.isHost) this.beginNetworkedMatch(msg.match, msg.inputDelay);
         break;
 
       case 'ping':
-        this.transport?.send({ t: 'pong', s: msg.s });
-        if (this.game) this.gameLockstep()?.receive(msg);
+        // Answer the asker only. The lockstep driver owns pings once the match
+        // has started, so it must not also see this one.
+        this.transport?.sendTo(msg.from, { t: 'pong', from: this.slot, s: msg.s });
         break;
 
       case 'pong':
-        this.rttMs = Math.round(performance.now() - msg.s);
+        this.peerRtt.set(msg.from, Math.round(performance.now() - msg.s));
+        this.rttMs = Math.max(0, ...this.peerRtt.values());
         if (this.game) this.gameLockstep()?.receive(msg);
         break;
 

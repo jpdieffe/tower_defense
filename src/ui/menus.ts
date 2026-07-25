@@ -1,6 +1,7 @@
 import { HEROES } from '../content/heroes';
 import { MAPS } from '../content/maps';
 import { TOWERS } from '../content/towers';
+import { PLAYER_COLORS } from '../render/renderer';
 import { DIFFICULTIES } from '../sim/state';
 import { copyToClipboard, clear, el, tapButton, toast } from './dom';
 
@@ -24,7 +25,7 @@ export function renderTitle(root: HTMLElement, h: TitleHandlers): void {
           'div',
           { class: 'title' },
           el('h1', {}, 'BULWARK'),
-          el('p', {}, 'Two players. One keep. Endless waves.'),
+          el('p', {}, 'Up to three players. One keep. Endless waves.'),
         ),
         tapButton('btn primary', h.onHost, '🤝 Host a co-op game'),
         tapButton('btn warm', h.onJoin, '🔗 Join with a code'),
@@ -34,7 +35,7 @@ export function renderTitle(root: HTMLElement, h: TitleHandlers): void {
           'div',
           { class: 'muted', style: 'text-align:center' },
           'Runs in any modern phone browser — no install, no account. '
-          + 'Both phones simulate the battle in perfect lockstep, so you always see the same fight.',
+          + 'Every phone simulates the battle in perfect lockstep, so you always see the same fight.',
         ),
       ),
     ),
@@ -55,8 +56,8 @@ export interface SetupHandlers {
   onChange: () => void;
   onConfirm: () => void;
   onBack: () => void;
-  /** Hero already chosen by the other player, if any. */
-  takenHeroId?: number;
+  /** Heroes already chosen by the other players, if any. */
+  takenHeroIds?: number[];
   extra?: HTMLElement | null;
 }
 
@@ -66,7 +67,7 @@ export function renderSetup(root: HTMLElement, h: SetupHandlers): void {
 
   const heroGrid = el('div', { class: 'chooser' });
   for (const hero of HEROES) {
-    const taken = h.takenHeroId === hero.id;
+    const taken = h.takenHeroIds?.includes(hero.id) ?? false;
     const btn = tapButton(
       `choice${model.heroId === hero.id ? ' selected' : ''}`,
       () => {
@@ -165,7 +166,7 @@ export function renderHostWaiting(
           { class: 'card' },
           el('h2', {}, 'Share this code'),
           el('div', { class: 'room-code' }, code),
-          el('div', { class: 'muted' }, 'Your friend taps “Join with a code” and types this in.'),
+          el('div', { class: 'muted' }, 'Your friends tap “Join with a code” and type this in. Up to two can join.'),
           el('div', { class: 'btn-row', style: 'margin-top:12px' },
             tapButton('btn ghost', async () => {
               const ok = await copyToClipboard(code);
@@ -296,11 +297,11 @@ export function renderHelp(root: HTMLElement, onBack: () => void): void {
           el('h3', {}, 'Co-op rules'),
           el('div', { class: 'muted' },
             'You each have your own gold and your own towers, but you share the keep’s lives. '
-            + 'Both players must press READY to call the next wave early — and calling it early pays a bonus.'),
+            + 'Every player must press READY to call the next wave early — and calling it early pays a bonus.'),
           el('h3', {}, 'Why it never desyncs'),
           el('div', { class: 'muted' },
-            'Both phones run the exact same simulation from the same seed, using integer maths only. '
-            + 'A tick is never simulated until both players’ inputs for it have arrived, so a bullet that '
+            'Every phone runs the exact same simulation from the same seed, using integer maths only. '
+            + 'A tick is never simulated until every player’s inputs for it have arrived, so a bullet that '
             + 'hits on your screen always hits on theirs. If the network hiccups you will see a brief '
             + '“waiting for your partner” pause instead of two different games.'),
         ),
@@ -311,36 +312,53 @@ export function renderHelp(root: HTMLElement, onBack: () => void): void {
   );
 }
 
+export interface LobbySeat {
+  slot: number;
+  name: string;
+  ready: boolean;
+}
+
 export interface LobbyModel {
   code: string;
   isHost: boolean;
-  selfName: string;
-  peerName: string;
-  selfHero: number;
-  peerHero: number;
-  selfReady: boolean;
-  peerReady: boolean;
-  mapId: number;
-  difficulty: number;
+  /** Which seat is us. */
+  selfSlot: number;
+  seats: LobbySeat[];
+  /** Seats still open, so the host knows a third player can still be invited. */
+  freeSeats: number;
   rttMs: number;
 }
 
 export function lobbyStatusCard(m: LobbyModel): HTMLElement {
   const dot = (color: string): HTMLElement => el('span', { class: 'dot', style: `background:${color}` });
+  const legend = el('div', { class: 'legend' });
+  for (const seat of m.seats) {
+    legend.appendChild(
+      el(
+        'div',
+        {},
+        dot(PLAYER_COLORS[seat.slot % PLAYER_COLORS.length]),
+        `${seat.name}${seat.slot === m.selfSlot ? ' (you)' : ''} ${seat.ready ? '✅' : '…'}`,
+      ),
+    );
+  }
+  for (let i = 0; i < m.freeSeats; i++) {
+    legend.appendChild(el('div', { class: 'muted' }, dot('#3a4459'), 'Open seat'));
+  }
+  legend.appendChild(el('div', {}, `📶 ${m.rttMs}ms`));
+
   return el(
     'div',
     { class: 'card' },
     el('h2', {}, `Room ${m.code}`),
-    el(
-      'div',
-      { class: 'legend' },
-      el('div', {}, dot('#4aa3ff'), `${m.isHost ? m.selfName : m.peerName} ${(m.isHost ? m.selfReady : m.peerReady) ? '✅' : '…'}`),
-      el('div', {}, dot('#ff9a3c'), `${m.isHost ? m.peerName : m.selfName} ${(m.isHost ? m.peerReady : m.selfReady) ? '✅' : '…'}`),
-      el('div', {}, `📶 ${m.rttMs}ms`),
-    ),
+    legend,
+    m.freeSeats > 0
+      ? el('div', { class: 'muted', style: 'margin-top:8px' },
+        `Room code ${m.code} — one more player can still join.`)
+      : null,
     el('div', { class: 'muted', style: 'margin-top:8px' },
       m.isHost
-        ? 'You are player 1 (blue). Pick the map and difficulty, then start when you are both ready.'
-        : 'You are player 2 (orange). The host picks the map and difficulty.'),
+        ? 'You are the host. Pick the map and difficulty, then start once everyone is ready.'
+        : 'The host picks the map and difficulty.'),
   );
 }

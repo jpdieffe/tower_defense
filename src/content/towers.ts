@@ -477,8 +477,10 @@ export function towerHeadArt(defId: number, branch: number, level: number): { he
   return { head: d.head, scale: d.headScale };
 }
 
+const TOWER_BASE_ART = [PLATFORM.towerBaseP1, PLATFORM.towerBaseP2, PLATFORM.towerBaseP3];
+
 export function towerBaseArt(owner: number): number {
-  return owner === 0 ? PLATFORM.towerBaseP1 : PLATFORM.towerBaseP2;
+  return TOWER_BASE_ART[owner % TOWER_BASE_ART.length];
 }
 
 /** Total gold sunk into a tower at a given level (used for sell value). */

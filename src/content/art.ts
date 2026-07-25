@@ -48,6 +48,7 @@ export const PLATFORM = {
   emptyPlotAlt: T(16, 4),
   towerBaseP1: T(15, 3),
   towerBaseP2: T(15, 4),
+  towerBaseP3: T(15, 1),
   towerBaseDark: T(15, 0),
   towerBaseGreen: T(15, 1),
   towerBaseBrown: T(15, 2),

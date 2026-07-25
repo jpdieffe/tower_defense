@@ -53,7 +53,10 @@ export class Lockstep {
   private out: SimOutput = { events: [] };
   private accumulator = 0;
   private lastLocalHash = new Map<number, number>();
-  private peerHash = new Map<number, number>();
+  /** tick -> (player -> fingerprint they reported for it). */
+  private peerHash = new Map<number, Map<number, number>>();
+  /** Latest measured round trip per peer; `rttMs` reports the worst of them. */
+  private peerRtt = new Map<number, number>();
 
   private stalledSince = 0;
   /** Highest tick we have already published local input for. */
@@ -95,22 +98,34 @@ export class Lockstep {
   receive(msg: NetMessage): void {
     switch (msg.t) {
       case 'inp': {
-        const slot = this.slotFor(msg.k);
-        const remote = this.remotePlayerIndex();
-        if (remote >= 0) slot[remote] = msg.c;
+        if (!this.isPeer(msg.from)) break;
+        this.slotFor(msg.k)[msg.from] = msg.c;
         break;
       }
       case 'hash': {
-        this.peerHash.set(msg.k, msg.h);
+        if (!this.isPeer(msg.from)) break;
+        let byPlayer = this.peerHash.get(msg.k);
+        if (!byPlayer) {
+          byPlayer = new Map();
+          this.peerHash.set(msg.k, byPlayer);
+        }
+        byPlayer.set(msg.from, msg.h);
         this.compareHash(msg.k);
         break;
       }
       case 'ping':
-        this.transport?.send({ t: 'pong', s: msg.s });
+        // Answer the asker directly - a broadcast would give the third player
+        // a reply to a question they never asked.
+        this.transport?.sendTo(msg.from, { t: 'pong', from: this.localPlayer, s: msg.s });
         break;
-      case 'pong':
-        this.rttMs = Math.round(performance.now() - msg.s);
+      case 'pong': {
+        if (!this.isPeer(msg.from)) break;
+        this.peerRtt.set(msg.from, Math.round(performance.now() - msg.s));
+        let worst = 0;
+        for (const v of this.peerRtt.values()) worst = Math.max(worst, v);
+        this.rttMs = worst;
         break;
+      }
       case 'snap':
         this.applySnapshot(msg.k, msg.s);
         break;
@@ -119,9 +134,9 @@ export class Lockstep {
     }
   }
 
-  private remotePlayerIndex(): number {
-    if (this.playerCount < 2) return -1;
-    return this.localPlayer === 0 ? 1 : 0;
+  /** True for a valid player index that is not us. */
+  private isPeer(idx: number): boolean {
+    return Number.isInteger(idx) && idx >= 0 && idx < this.playerCount && idx !== this.localPlayer;
   }
 
   private slotFor(tick: number): (number[][] | null)[] {
@@ -150,7 +165,7 @@ export class Lockstep {
     this.pending.length = 0;
     this.slotFor(target)[this.localPlayer] = packed;
     this.publishedThrough = Math.max(this.publishedThrough, target);
-    this.transport?.send({ t: 'inp', k: target, c: packed });
+    this.transport?.send({ t: 'inp', from: this.localPlayer, k: target, c: packed });
   }
 
   /**
@@ -171,7 +186,7 @@ export class Lockstep {
     const target = this.state.tick + this.inputDelay + ticks;
     for (let k = this.publishedThrough + 1; k <= target; k++) {
       this.slotFor(k)[this.localPlayer] = [];
-      this.transport.send({ t: 'inp', k, c: [] });
+      this.transport.send({ t: 'inp', from: this.localPlayer, k, c: [] });
     }
     if (target > this.publishedThrough) this.publishedThrough = target;
   }
@@ -230,7 +245,7 @@ export class Lockstep {
   private simulateOne(tick: number): void {
     const slot = this.inbox.get(tick)!;
     const commands: Command[] = [];
-    // Deterministic order: player 0's commands, then player 1's.
+    // Deterministic order: every player's commands in player-index order.
     for (let p = 0; p < this.playerCount; p++) {
       const list = slot[p] ?? [];
       for (const packedCmd of list) {
@@ -247,7 +262,7 @@ export class Lockstep {
     if (this.playerCount > 1 && tick % HASH_INTERVAL === 0) {
       const h = hashState(this.state);
       this.lastLocalHash.set(tick, h);
-      this.transport?.send({ t: 'hash', k: tick, h });
+      this.transport?.send({ t: 'hash', from: this.localPlayer, k: tick, h });
       this.compareHash(tick);
       // Keep the maps small.
       if (this.lastLocalHash.size > 64) {
@@ -263,19 +278,28 @@ export class Lockstep {
     const mine = this.lastLocalHash.get(tick);
     const theirs = this.peerHash.get(tick);
     if (mine === undefined || theirs === undefined) return;
-    if (mine === theirs) {
-      this.verifiedTicks++;
+
+    for (const h of theirs.values()) {
+      if (h === mine) continue;
+
+      this.desynced = true;
+      this.onDesync?.(tick);
+      // The host is the tie-breaker: it ships its authoritative world to
+      // everyone, so a three-way disagreement still lands on one truth.
+      if (this.isHost) {
+        this.transport?.send({ t: 'snap', k: this.state.tick, s: cloneState(this.state) });
+        this.desynced = false;
+        this.lastLocalHash.clear();
+        this.peerHash.clear();
+      }
       return;
     }
 
-    this.desynced = true;
-    this.onDesync?.(tick);
-    // The host is the tie-breaker: it ships its authoritative world over.
-    if (this.isHost) {
-      this.transport?.send({ t: 'snap', k: this.state.tick, s: cloneState(this.state) });
-      this.desynced = false;
-      this.lastLocalHash.clear();
-      this.peerHash.clear();
+    // Only count the tick as verified once every peer has vouched for it.
+    if (theirs.size >= this.playerCount - 1) {
+      this.verifiedTicks++;
+      this.peerHash.delete(tick);
+      this.lastLocalHash.delete(tick);
     }
   }
 
@@ -296,7 +320,7 @@ export class Lockstep {
   }
 
   sendPing(): void {
-    this.transport?.send({ t: 'ping', s: performance.now() });
+    this.transport?.send({ t: 'ping', from: this.localPlayer, s: performance.now() });
   }
 
   stats(): NetStats {

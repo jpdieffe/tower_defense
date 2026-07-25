@@ -1,11 +1,12 @@
 # Bulwark — peer-to-peer co-op tower defense
 
-A two-player co-op tower defense game that runs in **any modern phone browser** — Android
-Chrome, iPhone Safari, desktop, whatever. No app store, no install, no accounts, and no
-Mac needed to build it.
+A co-op tower defense game for **two or three players** that runs in **any modern phone
+browser** — Android Chrome, iPhone Safari, desktop, whatever. No app store, no install, no
+accounts, and no Mac needed to build it.
 
 Multiplayer is **peer to peer over WebRTC**. A free broker is used only to introduce the
-two phones to each other; after that every packet goes directly between them.
+phones to each other; after that the packets go directly between them. The host relays the
+third player's packets, so each phone only maintains one peer connection.
 
 ---
 
@@ -18,7 +19,7 @@ npm run dev         # then open the printed Network URL on your phone
 ```
 
 `npm run dev` prints a `Network:` address (e.g. `http://192.168.1.70:5173/`). Open that on
-both phones while they are on the same Wi-Fi and you can play immediately.
+every phone while they are on the same Wi-Fi and you can play immediately.
 
 To play over the internet, deploy the static build anywhere (Netlify, Vercel, GitHub Pages,
 Cloudflare Pages — it is just files):
@@ -31,21 +32,25 @@ npm run preview     # sanity-check the production build locally
 > **HTTPS is required** for WebRTC on real devices. Every static host above gives you
 > HTTPS automatically. `localhost` is also treated as secure during development.
 
-### How two people connect
+### How people connect
 
 1. Player 1 taps **Host a co-op game** and reads out the four-character room code
    (or uses **Share link**, which sends a URL that joins automatically).
-2. Player 2 taps **Join with a code**, types it in, and they land in a shared lobby.
-3. Each picks a hero; the host picks the map and difficulty; both tap **Ready up**.
+2. Players 2 and 3 tap **Join with a code**, type it in, and they land in a shared lobby.
+   A room seats three; the lobby shows the open seat until it is filled.
+3. Each picks a hero; the host picks the map and difficulty; everyone taps **Ready up**.
+
+The room is closed to new arrivals once the battle starts, and slots stay contiguous if
+someone leaves the lobby — a player's seat number is also their in-match player index.
 
 ---
 
-## Requirement #1: both screens always show the same fight
+## Requirement #1: every screen always shows the same fight
 
 This was the hard requirement, so it drove the entire architecture. Bulwark does **not**
 stream entity positions between phones — that is exactly the approach where lag makes one
-player see a kill the other doesn't. Instead both phones run the *same simulation* and only
-exchange button presses.
+player see a kill the others don't. Instead every phone runs the *same simulation* and only
+exchanges button presses.
 
 **Deterministic lockstep**, specifically:
 
@@ -57,7 +62,7 @@ exchange button presses.
 | Iteration order | Everything is a plain array walked in order. Target ties break on entity id, never on object identity or map ordering. |
 | Network latency | Commands are stamped for tick `now + inputDelay` (negotiated from the lobby ping). A tick is **never simulated until every player's input for that exact tick has arrived**. |
 | A late packet | The game briefly waits and shows "Waiting for your partner…". Waiting is always better than two different worlds. |
-| Silent drift (a bug we missed) | Every 15 ticks the peers swap a 32-bit FNV-1a fingerprint of the entire state. On a mismatch the host ships an authoritative snapshot and the guest resynchronises. |
+| Silent drift (a bug we missed) | Every 15 ticks the peers swap a 32-bit FNV-1a fingerprint of the entire state. A tick only counts as verified once *every* peer has vouched for it, and on a mismatch the host ships an authoritative snapshot that everyone resynchronises to. |
 
 Because a peer can never run ahead of the inputs it has, **desync is structurally
 impossible** rather than merely unlikely: a bullet that hits on your screen has already hit

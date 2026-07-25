@@ -52,13 +52,22 @@ function makeHero(defId: number, x: Fx, y: Fx): Hero {
   };
 }
 
+/**
+ * Where each player's hero starts, as cell offsets from the keep. Flanking the
+ * keep first, then just in front of it for a third player.
+ */
+const HERO_SPAWN_OFFSETS: readonly (readonly [number, number])[] = [
+  [-2, -2], [2, -2], [0, -3],
+];
+
 export function createState(cfg: MatchConfig): GameState {
   const rt = buildMapRuntime(cfg.mapId);
   const diff = DIFFICULTIES[cfg.difficulty] ?? DIFFICULTIES[0];
 
   const players: PlayerState[] = cfg.players.map((p, i) => {
-    const spawnX = cellCenter(rt.def.core[0] + (i === 0 ? -2 : 2));
-    const spawnY = cellCenter(rt.def.core[1] - 2);
+    const off = HERO_SPAWN_OFFSETS[i % HERO_SPAWN_OFFSETS.length];
+    const spawnX = cellCenter(rt.def.core[0] + off[0]);
+    const spawnY = cellCenter(rt.def.core[1] + off[1]);
     return {
       idx: i,
       gold: cfg.startGold,
