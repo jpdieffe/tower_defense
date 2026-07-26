@@ -174,6 +174,7 @@ async function main() {
         'Audio   : "Interface Sounds"        by Kenney - https://kenney.nl/assets/interface-sounds',
         'Audio   : "Impact Sounds"           by Kenney - https://kenney.nl/assets/impact-sounds',
         'Music   : "Music Jingles"           by Kenney - https://kenney.nl/assets/music-jingles',
+        'Audio   : "Magic Spell SFX"         by JaggedStone - https://opengameart.org/content/magic-spell-sfx',
         '',
         'All of the above are released under Creative Commons CC0 1.0 Universal',
         '(public domain dedication): https://creativecommons.org/publicdomain/zero/1.0/',

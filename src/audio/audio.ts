@@ -33,6 +33,14 @@ const SFX_FILES: Record<string, string> = {
   deathAlt: 'sfx/impactpunch_medium_001.ogg',
   shatter: 'sfx/impactglass_medium_000.ogg',
   gong: 'sfx/impactbell_heavy_001.ogg',
+
+  magic1: 'sfx/magic/magical_1.ogg',
+  magic2: 'sfx/magic/magical_2.ogg',
+  magic3: 'sfx/magic/magical_3.ogg',
+  magic4: 'sfx/magic/magical_4.ogg',
+  magic5: 'sfx/magic/magical_5.ogg',
+  magic6: 'sfx/magic/magical_6.ogg',
+  magic7: 'sfx/magic/magical_7.ogg',
 };
 
 const MUSIC_FILES: Record<string, string> = {

@@ -5,9 +5,9 @@ import { PLAYER_COLORS, Renderer, type ViewOptions } from '../render/renderer';
 import { drawTowerSprite } from '../render/towerart';
 import { FXART } from '../content/art';
 import { enemyDef } from '../content/enemies';
-import { heroDef } from '../content/heroes';
+import { HERO, heroDef } from '../content/heroes';
 import { availableSkills, skillDef, SKILLS } from '../content/skills';
-import { itemDef, relicDef } from '../content/items';
+import { ItemKind, itemDef, relicDef } from '../content/items';
 import {
   MAX_TOWER_LEVEL, TOWERS, TOWER_CLASSES, computeTowerStats, towerDef,
   towerTitle, trackSplit, upgradeCost, type TowerTrack,
@@ -688,7 +688,6 @@ export class GameScreen {
     if (!ab.targeted) {
       this.ls.queue(useAbility(this.opts.localPlayer, h.x, h.y));
       vibrate(16);
-      audio.play('item', { volume: 0.7 });
       return;
     }
     this.placingDefId = -1;
@@ -704,7 +703,6 @@ export class GameScreen {
     const d = itemDef(inv.itemId);
     if (!d.targeted) {
       this.ls.queue(useItem(this.opts.localPlayer, slot, this.me.hero.x, this.me.hero.y));
-      audio.play('item', { volume: 0.8 });
       vibrate(16);
       return;
     }
@@ -1208,7 +1206,7 @@ export class GameScreen {
           const r = fxToFloat(ev.b) * cell;
           fx.ring(x, y, Math.max(cell, r), PLAYER_COLORS[ev.owner] ?? '#fff', 5, 520);
           fx.burst(x, y, 14, PLAYER_COLORS[ev.owner] ?? '#fff', cell * 0.1, cell * 0.12);
-          audio.play('item', { volume: 0.8, pan });
+          this.heroSkillSound(state.players[ev.owner]?.hero.defId ?? -1, pan);
           break;
         }
         case EventKind.HeroDeath:
@@ -1239,7 +1237,7 @@ export class GameScreen {
           }
           break;
         case EventKind.ItemUsed:
-          audio.play('item', { volume: 0.8 });
+          this.itemUseSound(ev.a, pan);
           this.refreshItems();
           break;
         case EventKind.Purchase:
@@ -1297,6 +1295,32 @@ export class GameScreen {
         audio.vary('shotLight', 1.25, 0.2, { volume: 0.16, pan }, 55);
         break;
     }
+  }
+
+  private heroSkillSound(heroId: number, pan: number): void {
+    const sounds: Record<number, readonly [string, number, number]> = {
+      [HERO.Paladin]: ['magic2', 0.82, 0.95],
+      [HERO.Orc]: ['magic7', 0.88, 0.72],
+      [HERO.DarkElf]: ['magic6', 0.78, 0.86],
+      [HERO.HighElf]: ['magic3', 0.8, 1.18],
+      [HERO.Magician]: ['magic4', 0.9, 0.9],
+    };
+    const [name, volume, rate] = sounds[heroId] ?? ['magic1', 0.8, 1];
+    audio.play(name, { volume, rate, pan }, 90);
+  }
+
+  private itemUseSound(itemId: number, pan: number): void {
+    const sounds: Record<number, readonly [string, number, number]> = {
+      [ItemKind.Meteor]: ['magic4', 0.92, 0.78],
+      [ItemKind.FrostNova]: ['magic5', 0.88, 1.08],
+      [ItemKind.GoldCache]: ['magic3', 0.72, 1.35],
+      [ItemKind.RepairKit]: ['magic2', 0.82, 1.18],
+      [ItemKind.TimeWarp]: ['magic6', 0.84, 0.7],
+      [ItemKind.TurretKit]: ['magic7', 0.78, 1.1],
+      [ItemKind.Overload]: ['magic1', 0.86, 1.28],
+    };
+    const [name, volume, rate] = sounds[itemId] ?? ['magic1', 0.75, 1];
+    audio.play(name, { volume, rate, pan }, 90);
   }
 }
 
