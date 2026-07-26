@@ -454,7 +454,7 @@ export class GameScreen {
       abilityCd,
     );
 
-    const itemsWrap = el('div', { class: 'action-row', style: 'flex:0 0 auto' });
+    const itemsWrap = el('div', { class: 'action-row items-strip' });
 
     const shopBtn = tapButton(
       'action-btn',

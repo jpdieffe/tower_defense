@@ -562,7 +562,22 @@ input.code {
   display: flex;
   gap: 6px;
   align-items: stretch;
+  min-width: 0;
 }
+
+.hud-bottom > .action-row { width: 100%; }
+
+.items-strip {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.items-strip::-webkit-scrollbar { display: none; }
 
 .action-btn {
   flex: 0 0 auto;
@@ -618,7 +633,8 @@ input.code {
 }
 
 .ready-btn {
-  flex: 1;
+  flex: 0 0 clamp(78px, 22vw, 130px);
+  min-width: 0;
   height: 58px;
   border-radius: 14px;
   font-weight: 900;
