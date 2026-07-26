@@ -2,14 +2,14 @@ import { FX_ONE, fxToFloat } from '../core/fixed';
 import { audio } from '../audio/audio';
 import { music } from '../audio/music';
 import { PLAYER_COLORS, Renderer, type ViewOptions } from '../render/renderer';
-import { atlas } from '../render/atlas';
+import { drawTowerSprite } from '../render/towerart';
 import { FXART } from '../content/art';
 import { enemyDef } from '../content/enemies';
 import { heroDef } from '../content/heroes';
 import { itemDef, relicDef } from '../content/items';
 import {
-  MAX_TOWER_LEVEL, TOWERS, TOWER_CLASSES, computeTowerStats, towerBaseArt, towerDef,
-  towerHeadArt, towerTitle, trackSplit, upgradeCost, type TowerTrack,
+  MAX_TOWER_LEVEL, TOWERS, TOWER_CLASSES, computeTowerStats, towerDef,
+  towerTitle, trackSplit, upgradeCost, type TowerTrack,
 } from '../content/towers';
 import { WAVE_MOD_INFO } from '../content/waves';
 import { getMap } from '../content/maps';
@@ -1257,16 +1257,14 @@ export function towerIcon(defId: number, owner: number, size = TOWER_GLYPH_SIZE)
   c.style.height = `${size}px`;
   const g = c.getContext('2d');
   if (g) {
-    const draw = (): void => {
-      g.clearRect(0, 0, c.width, c.height);
-      const cx = c.width / 2;
-      const cy = c.height / 2;
-      atlas.draw(g, towerBaseArt(owner), cx, cy, c.width * 0.95);
-      const art = towerHeadArt(defId, 0, 1);
-      atlas.draw(g, art.head, cx, cy, c.width * art.scale * 0.9);
-    };
-    if (atlas.loaded) draw();
-    else atlas.image.addEventListener('load', draw, { once: true });
+    drawTowerSprite(g, defId, c.width / 2, c.height / 2, c.width * 0.96, {
+      rot: 0,
+      team: PLAYER_COLORS[owner % PLAYER_COLORS.length],
+      time: 0,
+      fire: 0,
+      level: 1,
+      power: 0,
+    });
   }
   return c;
 }

@@ -4,7 +4,7 @@ import { CRYSTAL, FXART } from '../content/art';
 import { buildMapRuntime, isBuildable, type MapRuntime } from '../content/maps';
 import { enemyDef, ENEMY_TINTS } from '../content/enemies';
 import { heroDef } from '../content/heroes';
-import { towerBaseArt, towerDef, towerHeadArt, computeTowerStats } from '../content/towers';
+import { towerDef, computeTowerStats } from '../content/towers';
 import {
   GroundKind, Phase, ProjKind,
   type Enemy, type GameState,
@@ -12,6 +12,7 @@ import {
 import { atlas } from './atlas';
 import { Fx } from './fx';
 import { drawHeroSprite } from './heroart';
+import { drawTowerSprite } from './towerart';
 
 export const PLAYER_COLORS = ['#4aa3ff', '#ff9a3c', '#57e08a'];
 export const PLAYER_GLOW = [
@@ -318,9 +319,17 @@ export class Renderer {
 
     if (valid) {
       this.drawRange(cx, cy, fxToFloat(stats.range) * cell, towerDef(view.placingDefId).accent);
-      const d = towerDef(view.placingDefId);
-      atlas.draw(ctx, towerBaseArt(view.localPlayer), cx, cy, cell * 0.98, 0, 0.85);
-      atlas.draw(ctx, d.head, cx, cy, cell * d.headScale, 0, 0.9);
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      drawTowerSprite(ctx, view.placingDefId, cx, cy, cell, {
+        rot: 0,
+        team: PLAYER_COLORS[view.localPlayer % PLAYER_COLORS.length],
+        time: this.time,
+        fire: 0,
+        level: 1,
+        power: 0,
+      });
+      ctx.restore();
     }
   }
 
@@ -463,12 +472,18 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
 
-      atlas.draw(ctx, towerBaseArt(t.owner), x, y, cell * 0.98, 0, t.temp > 0 ? 0.7 : 1);
-
-      const art = towerHeadArt(t.defId, t.power, t.level);
       const rot = Math.atan2(fxToFloat(t.dy), fxToFloat(t.dx)) + Math.PI / 2;
-      const recoil = t.fireAnim > 0 ? 0.9 : 1;
-      atlas.draw(ctx, art.head, x, y, cell * art.scale * recoil, rot, t.temp > 0 ? 0.75 : 1);
+      ctx.save();
+      if (t.temp > 0) ctx.globalAlpha = 0.7;
+      drawTowerSprite(ctx, t.defId, x, y, cell, {
+        rot,
+        team: PLAYER_COLORS[t.owner % PLAYER_COLORS.length],
+        time: this.time,
+        fire: t.fireAnim > 0 ? Math.min(1, t.fireAnim / 6) : 0,
+        level: t.level,
+        power: t.power,
+      });
+      ctx.restore();
 
       // Level pips
       this.drawLevelPips(x, y + cell * 0.42, t.level, d.accent);
