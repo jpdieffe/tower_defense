@@ -715,7 +715,7 @@ export class Renderer {
 
       const x = this.lerpPx(h.px, h.x, alpha);
       const y = this.lerpPy(h.py, h.y, alpha);
-      const size = cell * 1.9;
+      const size = cell * 0.95;
       const rot = Math.atan2(fxToFloat(h.dy), fxToFloat(h.dx)) + Math.PI / 2;
       // Attacks decay over ~0.3s so the swing/draw animation has time to read.
       const sinceAttack = Math.max(0, d.attackCd - h.attackCd);
