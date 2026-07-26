@@ -28,6 +28,8 @@ export interface HeroArtState {
   swing: number;
   /** 1 while an ability is active. */
   cast: number;
+  /** Camera-relative pose selected from movement direction. */
+  view?: 'front' | 'back' | 'side';
 }
 
 const OUTLINE = 'rgba(22,16,30,0.85)';
@@ -216,8 +218,13 @@ function drawPaladin(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
   // Helm.
   circle(ctx, 0, -0.17, 0.155);
   ink(ctx, steel);
-  rounded(ctx, 0, -0.25, 0.2, 0.06, 0.03);
-  ink(ctx, '#2b3346', 0.02);
+  if (s.view === 'back') {
+    ctx.beginPath(); ctx.moveTo(-0.12, -0.19); ctx.lineTo(0.12, -0.19);
+    ctx.lineWidth = 0.025; ctx.strokeStyle = darkSteel; ctx.stroke();
+  } else {
+    rounded(ctx, s.view === 'side' ? 0.045 : 0, -0.25, s.view === 'side' ? 0.11 : 0.2, 0.06, 0.03);
+    ink(ctx, '#2b3346', 0.02);
+  }
   // Crest.
   ctx.beginPath();
   ctx.moveTo(0, -0.33);
@@ -316,13 +323,14 @@ function drawHighElf(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
   ctx.quadraticCurveTo(0.17, -0.02, 0, 0.1);
   ctx.closePath();
   ink(ctx, dark);
-  circle(ctx, 0, -0.15, 0.085);
-  ink(ctx, '#f2dcc0', 0.02);
-  ctx.fillStyle = '#2f6fa8';
-  ctx.beginPath();
-  ctx.arc(-0.035, -0.18, 0.018, 0, Math.PI * 2);
-  ctx.arc(0.035, -0.18, 0.018, 0, Math.PI * 2);
-  ctx.fill();
+  circle(ctx, s.view === 'side' ? 0.025 : 0, -0.15, 0.085);
+  ink(ctx, s.view === 'back' ? '#e7edf6' : '#f2dcc0', 0.02);
+  if (s.view !== 'back') {
+    ctx.fillStyle = '#2f6fa8'; ctx.beginPath();
+    if (s.view === 'side') ctx.arc(0.058, -0.18, 0.019, 0, Math.PI * 2);
+    else { ctx.arc(-0.035, -0.18, 0.018, 0, Math.PI * 2); ctx.arc(0.035, -0.18, 0.018, 0, Math.PI * 2); }
+    ctx.fill();
+  }
   // Circlet.
   ctx.beginPath();
   ctx.moveTo(-0.075, -0.23);
@@ -398,6 +406,10 @@ function drawMagician(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
   ink(ctx, robe);
   circle(ctx, 0, -0.08, 0.125);
   ink(ctx, deep, 0.022);
+  if (s.view === 'back') {
+    ctx.beginPath(); ctx.arc(0, -0.06, 0.08, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.lineWidth = 0.025; ctx.strokeStyle = 'rgba(210,175,255,.5)'; ctx.stroke();
+  }
   ctx.beginPath();
   ctx.moveTo(0, -0.28);
   ctx.lineTo(0.03, -0.22);
@@ -494,14 +506,14 @@ function drawOrc(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
   ink(ctx, '#2f2418', 0.022);
   circle(ctx, 0, -0.15, 0.16);
   ink(ctx, hide);
-  rounded(ctx, 0, -0.24, 0.22, 0.06, 0.03);
+  rounded(ctx, s.view === 'side' ? 0.025 : 0, -0.24, s.view === 'side' ? 0.14 : 0.22, 0.06, 0.03);
   ink(ctx, hideDark, 0.02);
-  ctx.fillStyle = '#ffd94a';
-  circle(ctx, -0.055, -0.21, 0.026);
-  ctx.fill();
-  circle(ctx, 0.055, -0.21, 0.026);
-  ctx.fill();
-  for (const sx of [-1, 1]) {
+  if (s.view !== 'back') {
+    ctx.fillStyle = '#ffd94a';
+    circle(ctx, s.view === 'side' ? 0.065 : -0.055, -0.21, 0.026); ctx.fill();
+    if (s.view !== 'side') { circle(ctx, 0.055, -0.21, 0.026); ctx.fill(); }
+  }
+  for (const sx of s.view === 'back' ? [] : (s.view === 'side' ? [1] : [-1, 1])) {
     ctx.beginPath();
     ctx.moveTo(sx * 0.075, -0.28);
     ctx.quadraticCurveTo(sx * 0.115, -0.36, sx * 0.06, -0.4);
@@ -581,13 +593,14 @@ function drawDarkElf(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
   ctx.quadraticCurveTo(0.16, -0.02, 0, 0.16);
   ctx.closePath();
   ink(ctx, dark);
-  circle(ctx, 0, -0.16, 0.08);
-  ink(ctx, '#cfc3e0', 0.02);
-  ctx.fillStyle = '#ff5fd0';
-  ctx.beginPath();
-  ctx.arc(-0.033, -0.19, 0.019, 0, Math.PI * 2);
-  ctx.arc(0.033, -0.19, 0.019, 0, Math.PI * 2);
-  ctx.fill();
+  circle(ctx, s.view === 'side' ? 0.025 : 0, -0.16, 0.08);
+  ink(ctx, s.view === 'back' ? '#493762' : '#cfc3e0', 0.02);
+  if (s.view !== 'back') {
+    ctx.fillStyle = '#ff5fd0'; ctx.beginPath();
+    if (s.view === 'side') ctx.arc(0.058, -0.19, 0.02, 0, Math.PI * 2);
+    else { ctx.arc(-0.033, -0.19, 0.019, 0, Math.PI * 2); ctx.arc(0.033, -0.19, 0.019, 0, Math.PI * 2); }
+    ctx.fill();
+  }
 
   // Poison vial on the hip.
   circle(ctx, -0.19, 0.14, 0.045);
@@ -636,12 +649,16 @@ export function drawHeroSprite(
   // Camera-facing three-quarter presentation: mirror when travelling left,
   // then add a small directional lean. Crucially, the body remains upright.
   const facingX = Math.sin(state.rot);
+  const depth = Math.cos(state.rot);
+  const view: HeroArtState['view'] = depth > 0.45 ? 'back' : depth < -0.45 ? 'front' : 'side';
+  const pose: HeroArtState = { ...state, view };
   const mirror = facingX < -0.08 ? -1 : 1;
-  ctx.scale(size * mirror, size * 1.08);
-  ctx.transform(1, 0, -0.08, 1, facingX * 0.025, 0);
+  const profile = view === 'side' ? 0.86 : 1;
+  ctx.scale(size * mirror * profile, size * 1.08);
+  ctx.transform(1, 0, view === 'side' ? -0.16 : -0.08, 1, Math.abs(facingX) * 0.035, 0);
   ctx.lineJoin = 'round';
   ctx.miterLimit = 2;
-  drawIsoLegs(ctx, defId, state);
-  paint(ctx, state);
+  drawIsoLegs(ctx, defId, pose);
+  paint(ctx, pose);
   ctx.restore();
 }
