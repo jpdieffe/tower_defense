@@ -11,6 +11,7 @@ import {
 } from '../sim/types';
 import { atlas } from './atlas';
 import { Fx } from './fx';
+import { drawHeroSprite } from './heroart';
 
 export const PLAYER_COLORS = ['#4aa3ff', '#ff9a3c', '#57e08a'];
 export const PLAYER_GLOW = [
@@ -714,8 +715,11 @@ export class Renderer {
 
       const x = this.lerpPx(h.px, h.x, alpha);
       const y = this.lerpPy(h.py, h.y, alpha);
-      const size = cell * 1.05;
+      const size = cell * 1.9;
       const rot = Math.atan2(fxToFloat(h.dy), fxToFloat(h.dx)) + Math.PI / 2;
+      // Attacks decay over ~0.3s so the swing/draw animation has time to read.
+      const sinceAttack = Math.max(0, d.attackCd - h.attackCd);
+      const swing = h.attackCd > 0 ? Math.max(0, 1 - sinceAttack / 9) : 0;
 
       // Move order marker
       if (h.moving && p.idx === view.localPlayer) {
@@ -733,26 +737,29 @@ export class Renderer {
 
       // Aura footprint
       ctx.save();
-      ctx.globalAlpha = 0.28;
-      const grad = ctx.createRadialGradient(x, y, cell * 0.1, x, y, cell * 0.75);
+      ctx.globalAlpha = 0.24;
+      const grad = ctx.createRadialGradient(x, y, cell * 0.1, x, y, cell * 0.9);
       grad.addColorStop(0, color);
       grad.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(x, y, cell * 0.75, 0, Math.PI * 2);
+      ctx.arc(x, y, cell * 0.9, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
-      ctx.save();
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 10;
-      atlas.drawTinted(ctx, d.art, x, y, size, rot, d.color, 1);
-      ctx.restore();
+      drawHeroSprite(ctx, h.defId, x, y, size, {
+        rot,
+        team: color,
+        time: this.time,
+        walk: h.moving ? 1 : 0,
+        swing,
+        cast: h.abilityT > 0 ? 1 : 0,
+      });
 
       // Health + level
-      const w = size * 0.85;
+      const w = size * 0.48;
       const bh = Math.max(3, cell * 0.08);
-      const top = y - size * 0.6;
+      const top = y - size * 0.42;
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,0.65)';
       ctx.fillRect(x - w / 2 - 1, top - 1, w + 2, bh + 2);
