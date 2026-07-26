@@ -30,9 +30,7 @@ import {
 import { generateWave, WaveMod } from '../content/waves';
 import { availableSkills, hasSkill } from '../content/skills';
 import { CmdType, Track, type Command } from './commands';
-import {
-  BUILD_PHASE_TICKS, DIFFICULTIES, findEnemy, findTower, nextId, refreshShop,
-} from './state';
+import { DIFFICULTIES, findEnemy, findTower, nextId, refreshShop } from './state';
 import {
   DmgType, EventKind, GroundKind, Phase, ProjKind, sec, TargetMode, TICK_RATE,
   type Enemy, type GameState, type GroundEffect, type PlayerState,
@@ -448,18 +446,9 @@ function updatePhase(ctx: Ctx): void {
   const s = ctx.s;
   if (s.phase === Phase.Build) {
     const everyoneReady = s.players.length > 0 && s.players.every((p) => p.ready);
-    if (s.phaseTimer > 0) s.phaseTimer--;
-    if (everyoneReady || s.phaseTimer <= 0) {
-      // Calling the wave early pays a bounty for the seconds you skipped.
-      if (everyoneReady && s.phaseTimer > 0) {
-        const bonus = 4 + Math.floor(s.phaseTimer / TICK_RATE) * 5;
-        for (const p of s.players) {
-          p.gold += bonus;
-          p.goldEarned += bonus;
-        }
-      }
-      startWave(ctx);
-    }
+    // Build phases have no deadline. A wave begins only after every player
+    // explicitly readies up (or the solo player presses Start).
+    if (everyoneReady) startWave(ctx);
     return;
   }
 
@@ -476,7 +465,7 @@ function updatePhase(ctx: Ctx): void {
       s.score += reward * 2 + s.wave * 25;
       s.bestWave = Math.max(s.bestWave, s.wave);
       s.phase = Phase.Build;
-      s.phaseTimer = BUILD_PHASE_TICKS;
+      s.phaseTimer = 0;
       refreshShop(s, s.wave + 1);
       emit(ctx, EventKind.WaveCleared, 0, 0, s.wave, reward, 0);
     }

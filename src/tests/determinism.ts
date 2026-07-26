@@ -78,8 +78,8 @@ function scriptedCommands(tick: number, state: GameState): Command[] {
     }
   }
 
-  // Keep the waves flowing (ready up after a short build window).
-  if (state.phase === Phase.Build && state.phaseTimer < 90) {
+  // Keep the waves flowing in the test; real build phases wait indefinitely.
+  if (state.phase === Phase.Build && state.tick % 120 === 0) {
     for (let p = 0; p < np; p++) {
       if (!state.players[p].ready) out.push(toggleReady(p));
     }

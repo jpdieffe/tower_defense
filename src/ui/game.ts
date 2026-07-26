@@ -24,7 +24,7 @@ import {
   EventKind, Phase, ProjKind, TARGET_MODE_NAMES, TICK_RATE,
   type GameState, type SimEvent, type Tower,
 } from '../sim/types';
-import { clear, el, formatNumber, formatTime, setText, tapButton, toggleClass, vibrate } from './dom';
+import { clear, el, formatNumber, setText, tapButton, toggleClass, vibrate } from './dom';
 
 const TOWER_GLYPH_SIZE = 34;
 
@@ -497,7 +497,7 @@ export class GameScreen {
     }
 
     if (s.phase === Phase.Build) {
-      setText(this.hud.timerVal, `⏱ ${formatTime(s.phaseTimer, TICK_RATE)}`);
+      setText(this.hud.timerVal, '∞ BUILD');
     } else {
       const left = s.spawns.length + s.enemies.length;
       setText(this.hud.timerVal, `👹 ${left}`);

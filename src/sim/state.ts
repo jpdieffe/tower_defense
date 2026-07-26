@@ -26,9 +26,6 @@ export const DIFFICULTIES = [
   { key: 'nightmare', name: 'Nightmare', hpPct: 180, goldPct: 85, lives: 10 },
 ] as const;
 
-export const BUILD_PHASE_TICKS = sec(25);
-export const FIRST_BUILD_PHASE_TICKS = sec(35);
-
 function makeHero(defId: number, x: Fx, y: Fx): Hero {
   const d = heroDef(defId);
   return {
@@ -91,7 +88,7 @@ export function createState(cfg: MatchConfig): GameState {
     seed: cfg.seed >>> 0 || 1,
     difficulty: cfg.difficulty,
     phase: Phase.Build,
-    phaseTimer: FIRST_BUILD_PHASE_TICKS,
+    phaseTimer: 0,
     wave: 0,
     lives: diff.lives,
     maxLives: diff.lives,
