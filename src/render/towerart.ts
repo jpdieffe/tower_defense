@@ -183,6 +183,46 @@ function drawBase(ctx: CanvasRenderingContext2D, cls: number, team: string): voi
   ink(ctx, team, 0.024);
 }
 
+/** Upgrade tiers add a taller foundation, battlements, and track-specific hardware. */
+function drawUpgradeStage(
+  ctx: CanvasRenderingContext2D, level: number, power: number, accent: string,
+): void {
+  if (level <= 1) return;
+  const speed = Math.max(0, level - 1 - power);
+  circle(ctx, 0, 0, 0.32 + Math.min(3, level - 1) * 0.018);
+  ctx.lineWidth = 0.025 + level * 0.004;
+  ctx.strokeStyle = accent;
+  ctx.globalAlpha = 0.55 + level * 0.07;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Every level adds another visible buttress around the platform.
+  const count = 2 + level;
+  for (let i = 0; i < count; i++) {
+    const a = (i * Math.PI * 2) / count;
+    ctx.save();
+    ctx.translate(Math.cos(a) * 0.37, Math.sin(a) * 0.37);
+    ctx.rotate(a);
+    rounded(ctx, 0, 0, 0.09 + power * 0.008, 0.15, 0.025);
+    ink(ctx, power > speed ? '#66566f' : '#8fa9b8', 0.018);
+    ctx.restore();
+  }
+
+  // Fully upgraded towers receive an unmistakable glowing crown.
+  if (level >= 5) {
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      const r = i % 2 ? 0.39 : 0.45;
+      const px = Math.cos(a) * r;
+      const py = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    stroke(ctx, accent, 0.035);
+  }
+}
+
 // ----------------------------------------------------------------- heads
 
 type Head = (ctx: CanvasRenderingContext2D, accent: string, s: TowerArtState) => void;
@@ -699,6 +739,7 @@ export function drawTowerSprite(
   ctx.scale(size, size);
   ctx.lineJoin = 'round';
   drawBase(ctx, d.cls, s.team);
+  drawUpgradeStage(ctx, s.level, s.power, d.accent);
   ctx.restore();
 
   ctx.save();

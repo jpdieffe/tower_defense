@@ -6,7 +6,7 @@ import { drawTowerSprite } from '../render/towerart';
 import { FXART } from '../content/art';
 import { enemyDef } from '../content/enemies';
 import { HERO, heroDef } from '../content/heroes';
-import { availableSkills, skillDef, SKILLS } from '../content/skills';
+import { activeSkills, availableSkills, skillDef, SKILLS } from '../content/skills';
 import { ItemKind, itemDef, relicDef } from '../content/items';
 import {
   MAX_TOWER_LEVEL, TOWERS, TOWER_CLASSES, computeTowerStats, towerDef,
@@ -65,6 +65,7 @@ export class GameScreen {
   private selectedTowerId = 0;
   private aimingKind: 'none' | 'ability' | 'item' | 'rally' = 'none';
   private aimingSlot = -1;
+  private aimingSkillId = -1;
   private aimingTowerId = 0;
   private aim: { x: number; y: number; radius: number } | null = null;
   private placeCell: { x: number; y: number } | null = null;
@@ -306,7 +307,7 @@ export class GameScreen {
       this.aimingTowerId = 0;
       this.aim = null;
       if (kind === 'ability') {
-        this.ls.queue(useAbility(this.opts.localPlayer, world.x, world.y));
+        this.ls.queue(useAbility(this.opts.localPlayer, this.aimingSkillId, world.x, world.y));
       } else if (kind === 'rally') {
         this.ls.queue(setRally(this.opts.localPlayer, towerId, world.x, world.y));
         this.lastInspectKey = '';
@@ -448,7 +449,7 @@ export class GameScreen {
     const hd = heroDef(this.me.hero.defId);
     const abilityBtn = tapButton(
       'action-btn',
-      () => this.armAbility(),
+      () => this.openPowerPicker(),
       el('div', { class: 'big' }, abilityIcon(hd.ability.kind)),
       el('div', { class: 'tiny' }, 'Skill'),
       abilityCd,
@@ -678,22 +679,51 @@ export class GameScreen {
     this.hud.buildBar.scrollLeft = 0;
   }
 
-  private armAbility(): void {
+  private openPowerPicker(): void {
     const h = this.me.hero;
     if (!h.alive || h.abilityCd > 0) {
       audio.play('deny', { volume: 0.5 });
       return;
     }
-    const ab = heroDef(h.defId).ability;
+    if (this.overlay) return;
+    const signature = heroDef(h.defId).ability;
+    const powers = [
+      { id: -1, name: signature.name, desc: signature.desc, icon: abilityIcon(signature.kind), active: signature },
+      ...activeSkills(this.me.skills).map((sk) => ({ id: sk.id, name: sk.name, desc: sk.desc.replace('ACTIVE • ', ''), icon: sk.icon, active: sk.active! })),
+    ];
+    const panel = el('div', { class: 'power-panel' },
+      el('div', { class: 'skill-kicker' }, 'HERO POWERS'),
+      el('h2', {}, 'Choose a power'),
+      el('p', { class: 'skill-sub' }, 'Your signature power is always available. Unlock more in the skill tree.'),
+      el('div', { class: 'power-grid' }, ...powers.map((power) => tapButton('power-card', () => {
+        this.closeOverlay();
+        this.armAbility(power.id);
+      }, el('div', { class: 'power-icon' }, power.icon), el('div', {},
+        el('div', { class: 'skill-name' }, power.name),
+        el('div', { class: 'skill-desc' }, power.desc),
+        el('div', { class: 'power-meta' }, `${Math.ceil(power.active.cooldown / TICK_RATE)}s cooldown${power.active.targeted ? ' • aimed' : ' • instant'}`),
+      )))),
+      tapButton('btn ghost skill-later', () => this.closeOverlay(), 'Cancel'),
+    );
+    const overlay = el('div', { class: 'overlay skill-overlay' }, panel);
+    this.overlay = overlay;
+    this.root.appendChild(overlay);
+  }
+
+  private armAbility(skillId: number): void {
+    const h = this.me.hero;
+    const learned = skillId >= 0 ? skillDef(skillId) : null;
+    const ab = learned?.active ?? heroDef(h.defId).ability;
+    this.aimingSkillId = skillId;
     if (!ab.targeted) {
-      this.ls.queue(useAbility(this.opts.localPlayer, h.x, h.y));
+      this.ls.queue(useAbility(this.opts.localPlayer, skillId, h.x, h.y));
       vibrate(16);
       return;
     }
     this.placingDefId = -1;
     this.aimingKind = 'ability';
     this.aim = { x: h.x, y: h.y - FX_ONE * 2, radius: ab.radius };
-    this.flashWarning(`Drag to aim ${ab.name}, release to cast.`);
+    this.flashWarning(`Drag to aim ${learned?.name ?? heroDef(h.defId).ability.name}, release to cast.`);
     this.refreshActionRow();
   }
 

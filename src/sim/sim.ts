@@ -28,7 +28,7 @@ import {
   type RelicMods,
 } from '../content/items';
 import { generateWave, WaveMod } from '../content/waves';
-import { availableSkills, hasSkill } from '../content/skills';
+import { availableSkills, hasSkill, skillDef } from '../content/skills';
 import { CmdType, Track, type Command } from './commands';
 import { DIFFICULTIES, findEnemy, findTower, nextId, refreshShop } from './state';
 import {
@@ -136,7 +136,7 @@ function applyCommand(ctx: Ctx, c: Command): void {
     case CmdType.SetTargetMode: return cmdTargetMode(ctx, p, c.a, c.b);
     case CmdType.SetRally: return cmdSetRally(ctx, p, c.a, c.b, c.c);
     case CmdType.MoveHero: return cmdMoveHero(p, c.a, c.b);
-    case CmdType.UseAbility: return cmdAbility(ctx, p, c.a, c.b);
+    case CmdType.UseAbility: return cmdAbility(ctx, p, c.c, c.a, c.b);
     case CmdType.UseItem: return cmdUseItem(ctx, p, c.a, c.b, c.c);
     case CmdType.BuyShop: return cmdBuyShop(ctx, p, c.a);
     case CmdType.ChooseSkill: return cmdChooseSkill(ctx, p, c.a);
@@ -279,11 +279,14 @@ function cmdMoveHero(p: PlayerState, x: Fx, y: Fx): void {
   p.hero.moving = true;
 }
 
-function cmdAbility(ctx: Ctx, p: PlayerState, x: Fx, y: Fx): void {
+function cmdAbility(ctx: Ctx, p: PlayerState, skillId: number, x: Fx, y: Fx): void {
   const h = p.hero;
   if (!h.alive || h.abilityCd > 0) return;
   const d = heroDef(h.defId);
-  const ab = d.ability;
+  const baseAb = d.ability;
+  const learned = skillId >= 0 ? skillDef(skillId) : null;
+  if (learned && (!learned.active || !hasSkill(p.skills, skillId))) return;
+  const ab = learned?.active ?? baseAb;
   const power = ab.damage + ab.damagePerLevel * (h.level - 1);
   const heroDmgPct = ctx.mods[p.idx].heroDamagePct + (hasSkill(p.skills, 0) ? 15 : 0);
   const dmg = power + pct(power, heroDmgPct);
@@ -304,37 +307,65 @@ function cmdAbility(ctx: Ctx, p: PlayerState, x: Fx, y: Fx): void {
     ty = h.y;
   }
 
-  switch (ab.kind) {
+  const effect = learned?.active?.effect;
+  if (effect === 'heal') {
+    h.hp = Math.min(heroMaxHp(p), h.hp + pct(heroMaxHp(p), 35));
+    emit(ctx, EventKind.HeroAbility, h.x, h.y, AbilityKind.ShieldSlam, ab.radius, p.idx);
+  } else if (effect === 'frost') {
+    for (const e of ctx.s.enemies) {
+      if (e.dead || fxDist2(e.x, e.y, h.x, h.y) > fxMul(ab.radius, ab.radius)) continue;
+      dealDamage(ctx, e, dmg, DmgType.Frost, p.idx, 0);
+      applyStun(e, sec(0.7));
+      applySlow(ctx, e, 50, sec(2.5), p.idx);
+    }
+    emit(ctx, EventKind.Freeze, h.x, h.y, sec(1), ab.radius, p.idx);
+  } else if (effect === 'whirlwind') {
+    for (const e of ctx.s.enemies) {
+      if (e.dead || e.flying || fxDist2(e.x, e.y, h.x, h.y) > fxMul(ab.radius, ab.radius)) continue;
+      dealDamage(ctx, e, dmg, DmgType.Physical, p.idx, 0);
+      applyStun(e, sec(0.35));
+    }
+    emit(ctx, EventKind.HeroAbility, h.x, h.y, AbilityKind.ShieldSlam, ab.radius, p.idx);
+  } else if (effect === 'meteor') {
+    spawnMeteor(ctx, p.idx, tx, ty, ab.radius, dmg, sec(3), 38);
+    emit(ctx, EventKind.HeroAbility, tx, ty, AbilityKind.Meteor, ab.radius, p.idx);
+  } else if (effect === 'storm') {
+    addGround(ctx, p.idx, GroundKind.ArrowStorm, tx, ty, ab.radius, dmg, DmgType.Energy, 0, sec(3.5));
+    emit(ctx, EventKind.HeroAbility, tx, ty, AbilityKind.ArrowStorm, ab.radius, p.idx);
+  } else if (effect === 'sentry') {
+    spawnSentry(ctx, p.idx, tx, ty, sec(20));
+    emit(ctx, EventKind.HeroAbility, tx, ty, AbilityKind.Sentry, ab.radius, p.idx);
+  } else switch (baseAb.kind) {
     case AbilityKind.ShieldSlam: {
       for (const e of ctx.s.enemies) {
         if (e.dead || e.flying) continue;
-        if (fxDist2(e.x, e.y, h.x, h.y) > fxMul(ab.radius, ab.radius)) continue;
+        if (fxDist2(e.x, e.y, h.x, h.y) > fxMul(baseAb.radius, baseAb.radius)) continue;
         dealDamage(ctx, e, dmg, DmgType.Physical, p.idx, 0);
-        applyStun(e, ab.stunT);
+        applyStun(e, baseAb.stunT);
       }
       emit(ctx, EventKind.HeroAbility, h.x, h.y, AbilityKind.ShieldSlam, ab.radius, p.idx);
       break;
     }
     case AbilityKind.ArrowStorm: {
       addGround(ctx, p.idx, GroundKind.ArrowStorm, tx, ty, ab.radius,
-        dmg, DmgType.Physical, 0, ab.duration);
+        dmg, DmgType.Physical, 0, baseAb.duration);
       emit(ctx, EventKind.HeroAbility, tx, ty, AbilityKind.ArrowStorm, ab.radius, p.idx);
       break;
     }
     case AbilityKind.Meteor: {
-      spawnMeteor(ctx, p.idx, tx, ty, ab.radius, dmg, ab.duration, 46);
+      spawnMeteor(ctx, p.idx, tx, ty, baseAb.radius, dmg, baseAb.duration, 46);
       emit(ctx, EventKind.HeroAbility, tx, ty, AbilityKind.Meteor, ab.radius, p.idx);
       break;
     }
     case AbilityKind.Sentry: {
-      spawnSentry(ctx, p.idx, tx, ty, ab.duration);
+      spawnSentry(ctx, p.idx, tx, ty, baseAb.duration);
       emit(ctx, EventKind.HeroAbility, tx, ty, AbilityKind.Sentry, ab.radius, p.idx);
       break;
     }
     default: break;
   }
 
-  const cdCut = Math.min(60, ctx.mods[p.idx].abilityCdPct + (hasSkill(p.skills, 7) ? 22 : 0));
+  const cdCut = Math.min(60, ctx.mods[p.idx].abilityCdPct + (hasSkill(p.skills, 6) ? 15 : 0));
   h.abilityCd = Math.max(1, ab.cooldown - pct(ab.cooldown, cdCut));
 }
 
@@ -943,7 +974,7 @@ function updateWorldItems(ctx: Ctx): void {
     }
     if (collector) {
       const existing = collector.items.find((v) => v.itemId === it.itemId);
-      const charges = 1 + (hasSkill(collector.skills, 8) ? 1 : 0);
+      const charges = 1;
       if (existing) existing.charges += charges;
       else if (collector.items.length < MAX_ITEM_SLOTS) collector.items.push({ itemId: it.itemId, charges });
       else { collector.gold += 80; collector.goldEarned += 80; }
@@ -1738,7 +1769,7 @@ function updateHeroes(ctx: Ctx): void {
     h.maxHp = heroMaxHp(p) + pct(d.hp, m.heroHpPct);
 
     // Regeneration
-    h.regenAcc += d.regen + (hasSkill(p.skills, 4) ? 8 : 0);
+    h.regenAcc += d.regen;
     const heal = Math.floor(h.regenAcc / TICK_RATE);
     if (heal > 0) {
       h.regenAcc -= heal * TICK_RATE;
@@ -1776,7 +1807,7 @@ function updateHeroes(ctx: Ctx): void {
       h.alive = false;
       h.hp = 0;
       h.moving = false;
-      h.respawn = hasSkill(p.skills, 5) ? Math.max(1, d.respawn - pct(d.respawn, 40)) : d.respawn;
+      h.respawn = d.respawn;
       emit(ctx, EventKind.HeroDeath, h.x, h.y, 0, 0, p.idx);
       continue;
     }
@@ -1801,11 +1832,10 @@ function updateHeroes(ctx: Ctx): void {
     h.dx = tmpVec.x;
     h.dy = tmpVec.y;
     h.targetId = target.id;
-    h.attackCd = hasSkill(p.skills, 1) ? Math.max(1, d.attackCd - pct(d.attackCd, 18)) : d.attackCd;
+    h.attackCd = d.attackCd;
 
     let damage = d.damage + d.damagePerLevel * (h.level - 1);
     damage += pct(damage, m.heroDamagePct + (hasSkill(p.skills, 0) ? 15 : 0));
-    if (hasSkill(p.skills, 2) && target.hp * 100 <= target.maxHp * 35) damage += pct(damage, 25);
     const critPct = d.critPct + m.critPct;
     if (critPct > 0 && chance(s as RngHolder, Math.min(100, critPct))) {
       damage = Math.floor((damage * d.critMult) / 100);

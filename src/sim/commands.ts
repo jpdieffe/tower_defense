@@ -58,8 +58,9 @@ export const setRally = (p: number, towerId: number, x: Fx, y: Fx): Command =>
 export const moveHero = (p: number, x: Fx, y: Fx): Command =>
   cmd(CmdType.MoveHero, p, x, y);
 
-export const useAbility = (p: number, x: Fx, y: Fx): Command =>
-  cmd(CmdType.UseAbility, p, x, y);
+/** skillId -1 casts the hero's signature power; learned active skills use their id. */
+export const useAbility = (p: number, skillId: number, x: Fx, y: Fx): Command =>
+  cmd(CmdType.UseAbility, p, x, y, skillId);
 
 export const useItem = (p: number, slot: number, x: Fx, y: Fx): Command =>
   cmd(CmdType.UseItem, p, slot, x, y);
