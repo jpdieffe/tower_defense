@@ -6,6 +6,7 @@ import { drawTowerSprite } from '../render/towerart';
 import { FXART } from '../content/art';
 import { enemyDef } from '../content/enemies';
 import { heroDef } from '../content/heroes';
+import { availableSkills, skillDef, SKILLS } from '../content/skills';
 import { itemDef, relicDef } from '../content/items';
 import {
   MAX_TOWER_LEVEL, TOWERS, TOWER_CLASSES, computeTowerStats, towerDef,
@@ -16,7 +17,7 @@ import { getMap } from '../content/maps';
 import { hashState } from '../sim/state';
 import type { Lockstep } from '../net/lockstep';
 import {
-  Track, buyShop, moveHero, sell, setRally, setTargetMode, toggleReady,
+  Track, buyShop, chooseSkill, moveHero, sell, setRally, setTargetMode, toggleReady,
   upgrade as upgradeCmd, useAbility, useItem, build as buildCmd,
 } from '../sim/commands';
 import {
@@ -604,10 +605,48 @@ export class GameScreen {
       this.aim = null;
       audio.play('click', { volume: 0.4 });
       this.flashWarning('Drag onto a green tile, then release to build.');
+      const d = towerDef(defId);
+      this.showTowerBrief(d.name, d.desc, d.cost);
     }
     this.placeCell = null;
     this.refreshBuildBar();
     this.updateInspector();
+  }
+
+  private showTowerBrief(name: string, desc: string, cost: number): void {
+    clear(this.hud.inspector);
+    this.hud.inspector.append(
+      el('div', { class: 'inspector-head' }, el('div', { class: 'nm' }, name), el('div', { class: 'lv' }, `${cost}g`)),
+      el('div', { class: 'placement-desc' }, desc),
+      el('div', { class: 'placement-tip' }, 'Drag to a green tile • tap again to cancel'),
+    );
+    this.hud.inspector.classList.add('show');
+  }
+
+  private openSkillTree(): void {
+    if (this.me.skillPoints <= 0 || this.overlay) return;
+    const choices = availableSkills(this.me.skills);
+    const panel = el('div', { class: 'skill-panel' },
+      el('div', { class: 'skill-kicker' }, 'HERO LEVEL UP'),
+      el('h2', {}, 'Choose a skill'),
+      el('p', { class: 'skill-sub' }, `${this.me.skillPoints} skill point${this.me.skillPoints === 1 ? '' : 's'} available`),
+    );
+    for (const branch of ['Might', 'Survival', 'Tactics'] as const) {
+      const row = el('div', { class: 'skill-branch' }, el('div', { class: 'branch-name' }, branch));
+      for (const sk of SKILLS.filter((v) => v.branch === branch)) {
+        const owned = this.me.skills.includes(sk.id);
+        const available = choices.some((v) => v.id === sk.id);
+        const card = tapButton(`skill-card${owned ? ' owned' : ''}${available ? ' available' : ' locked'}`, () => {
+          if (!available) return;
+          this.ls.queue(chooseSkill(this.opts.localPlayer, sk.id));
+          this.closeOverlay();
+        }, el('div', { class: 'skill-icon' }, sk.icon), el('div', {}, el('div', { class: 'skill-name' }, sk.name), el('div', { class: 'skill-desc' }, sk.desc)));
+        row.appendChild(card);
+      }
+      panel.appendChild(row);
+    }
+    const overlay = el('div', { class: 'overlay skill-overlay' }, panel);
+    this.overlay = overlay; this.root.appendChild(overlay);
   }
 
   private refreshBuildBar(): void {
@@ -706,6 +745,15 @@ export class GameScreen {
   // ---------------------------------------------------------- inspector
 
   private updateInspector(): void {
+    if (this.placingDefId >= 0) {
+      const d = towerDef(this.placingDefId);
+      const key = `placing:${d.id}`;
+      if (this.lastInspectKey !== key) {
+        this.lastInspectKey = key;
+        this.showTowerBrief(d.name, d.desc, d.cost);
+      }
+      return;
+    }
     const t = this.state.towers.find((x) => x.id === this.selectedTowerId);
     if (!t) {
       if (this.hud.inspector.classList.contains('show')) {
@@ -1162,7 +1210,19 @@ export class GameScreen {
         case EventKind.HeroLevel:
           fx.ring(x, y, cell * 1.8, '#ffd447', 4, 620);
           fx.text(x, y - cell, `LEVEL ${ev.a}`, '#ffd447', 20);
-          if (ev.owner === local) audio.jingle('levelUp', 0.5);
+          if (ev.owner === local) { audio.jingle('levelUp', 0.5); window.setTimeout(() => this.openSkillTree(), 450); }
+          break;
+        case EventKind.ItemSpawn:
+          fx.ring(x, y, cell * 0.65, '#ffd86b', 3, 520);
+          break;
+        case EventKind.ItemPickup:
+          fx.ring(x, y, cell, '#7fffd4', 4, 460);
+          fx.text(x, y - cell * 0.6, ev.owner === local ? `${itemDef(ev.a).name} +${ev.b}` : 'ITEM FOUND', '#7fffd4', 15);
+          audio.play('item', { volume: 0.75 });
+          if (ev.owner === local) this.refreshItems();
+          break;
+        case EventKind.SkillChosen:
+          fx.text(x, y - cell, skillDef(ev.a).name, '#ffd447', 17);
           break;
         case EventKind.GoldGain:
           if (ev.owner === local && ev.a >= 12) {
@@ -1179,7 +1239,6 @@ export class GameScreen {
           break;
         case EventKind.Freeze:
           audio.play('shatter', { volume: 0.8 });
-          fx.shake = Math.min(12, fx.shake + 6);
           break;
         case EventKind.Denied:
           if (ev.owner === local) {

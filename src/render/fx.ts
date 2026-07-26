@@ -158,7 +158,6 @@ export class Fx {
     });
     this.sprites(x, y, 6, FXART.smokeB, radius * 0.055, radius * 0.75, 520);
     this.burst(x, y, 10, color, radius * 0.06, radius * 0.16);
-    this.shake = Math.min(14, this.shake + radius * 0.03);
   }
 
   ring(x: number, y: number, radius: number, color: string, width = 3, life = 420): void {

@@ -4,6 +4,7 @@ import { CRYSTAL, FXART } from '../content/art';
 import { buildMapRuntime, isBuildable, type MapRuntime } from '../content/maps';
 import { enemyDef, ENEMY_TINTS } from '../content/enemies';
 import { heroDef } from '../content/heroes';
+import { itemDef } from '../content/items';
 import { towerDef, computeTowerStats } from '../content/towers';
 import {
   GroundKind, Phase, ProjKind,
@@ -152,6 +153,7 @@ export class Renderer {
 
     this.drawBuildOverlay(state, view);
     this.drawGrounds(state);
+    this.drawWorldItems(state);
     this.drawCore(state);
     this.drawTowers(state, view);
     this.drawEnemies(state, alpha);
@@ -444,6 +446,24 @@ export class Renderer {
             this.cam.cell * 0.5, 0, 0.55 * t);
         }
       }
+    }
+  }
+
+  private drawWorldItems(state: GameState): void {
+    const ctx = this.ctx;
+    const cell = this.cam.cell;
+    for (const it of state.worldItems) {
+      const x = this.px(it.x), y = this.py(it.y);
+      const bob = Math.sin((this.time + it.id * 91) * 0.005) * cell * 0.08;
+      const pulse = 0.8 + Math.sin((this.time + it.id * 47) * 0.008) * 0.15;
+      ctx.save();
+      ctx.translate(x, y + bob);
+      ctx.shadowColor = '#ffd86b'; ctx.shadowBlur = cell * 0.35;
+      ctx.fillStyle = 'rgba(25,20,38,0.9)'; ctx.strokeStyle = '#ffd86b'; ctx.lineWidth = Math.max(2, cell * 0.045);
+      ctx.beginPath(); ctx.arc(0, 0, cell * 0.34 * pulse, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.shadowBlur = 0; ctx.font = `${Math.round(cell * 0.42)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(itemDef(it.itemId).icon, 0, 1);
+      ctx.restore();
     }
   }
 

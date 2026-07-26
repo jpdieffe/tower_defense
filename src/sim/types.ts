@@ -82,6 +82,9 @@ export const EventKind = {
   BossSpawn: 20,
   SoldierSpawn: 21,
   SoldierDeath: 22,
+  ItemSpawn: 23,
+  ItemPickup: 24,
+  SkillChosen: 25,
 } as const;
 export type EventKind = (typeof EventKind)[keyof typeof EventKind];
 
@@ -268,6 +271,14 @@ export interface ItemSlot {
   charges: number;
 }
 
+export interface WorldItem {
+  id: number;
+  itemId: number;
+  x: Fx; y: Fx;
+  life: number;
+  pulse: number;
+}
+
 export interface ShopSlot {
   /** `kind` 0 = relic, 1 = consumable item. */
   kind: number;
@@ -282,6 +293,8 @@ export interface PlayerState {
   hero: Hero;
   relics: number[];
   items: ItemSlot[];
+  skills: number[];
+  skillPoints: number;
   ready: boolean;
   kills: number;
   damage: number;
@@ -318,6 +331,7 @@ export interface GameState {
   soldiers: Soldier[];
   projectiles: Projectile[];
   grounds: GroundEffect[];
+  worldItems: WorldItem[];
   spawns: SpawnOrder[];
   shop: ShopSlot[];
   shopWave: number;
@@ -333,6 +347,7 @@ export interface GameState {
   /** Global slow applied by Time Warp: [percent, ticksLeft]. */
   globalSlowPct: number;
   globalSlowT: number;
+  nextItemSpawn: number;
 }
 
 /** Not hashed, not serialised - cleared at the top of every tick. */

@@ -74,6 +74,8 @@ export function createState(cfg: MatchConfig): GameState {
       hero: makeHero(p.heroId, spawnX, spawnY),
       relics: [],
       items: [],
+      skills: [],
+      skillPoints: 0,
       ready: false,
       kills: 0,
       damage: 0,
@@ -100,6 +102,7 @@ export function createState(cfg: MatchConfig): GameState {
     soldiers: [],
     projectiles: [],
     grounds: [],
+    worldItems: [],
     spawns: [],
     shop: [],
     shopWave: -1,
@@ -113,6 +116,7 @@ export function createState(cfg: MatchConfig): GameState {
     overload: players.map(() => 0),
     globalSlowPct: 0,
     globalSlowT: 0,
+    nextItemSpawn: sec(12),
   };
 
   refreshShop(state, 1);
@@ -210,6 +214,8 @@ export function hashState(s: GameState): number {
     h = mix(h, p.relics.length);
     for (const r of p.relics) h = mix(h, r);
     for (const it of p.items) h = mix(h, it.itemId * 31 + it.charges);
+    h = mix(h, p.skillPoints);
+    for (const sk of p.skills) h = mix(h, sk);
     const hero = p.hero;
     h = mix(h, hero.x);
     h = mix(h, hero.y);
@@ -270,6 +276,10 @@ export function hashState(s: GameState): number {
     h = mix(h, g.y);
     h = mix(h, g.life);
   }
+  for (const it of s.worldItems) {
+    h = mix(h, it.id); h = mix(h, it.itemId); h = mix(h, it.x); h = mix(h, it.y); h = mix(h, it.life);
+  }
+  h = mix(h, s.nextItemSpawn);
 
   h = mix(h, s.spawns.length);
   return h >>> 0;

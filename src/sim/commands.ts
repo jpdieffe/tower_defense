@@ -30,6 +30,7 @@ export const CmdType = {
   ToggleReady: 10,
   Emote: 11,
   SetRally: 12,
+  ChooseSkill: 13,
 } as const;
 
 export function cmd(t: number, p: number, a = 0, b = 0, c = 0, d = 0): Command {
@@ -69,6 +70,7 @@ export const buyShop = (p: number, slot: number): Command =>
 export const toggleReady = (p: number): Command => cmd(CmdType.ToggleReady, p);
 
 export const emote = (p: number, id: number): Command => cmd(CmdType.Emote, p, id);
+export const chooseSkill = (p: number, skillId: number): Command => cmd(CmdType.ChooseSkill, p, skillId);
 
 /** Compact wire form: fewer bytes per tick than a keyed object. */
 export function packCommand(c: Command): number[] {

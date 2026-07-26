@@ -28,6 +28,7 @@ import {
   type RelicMods,
 } from '../content/items';
 import { generateWave, WaveMod } from '../content/waves';
+import { availableSkills, hasSkill } from '../content/skills';
 import { CmdType, Track, type Command } from './commands';
 import {
   BUILD_PHASE_TICKS, DIFFICULTIES, findEnemy, findTower, nextId, refreshShop,
@@ -114,6 +115,7 @@ export function step(s: GameState, commands: readonly Command[], out: SimOutput)
   enemyAbilities(ctx);
   updateTowers(ctx);
   updateHeroes(ctx);
+  updateWorldItems(ctx);
   updateProjectiles(ctx);
   updateGrounds(ctx);
   reap(ctx);
@@ -139,6 +141,7 @@ function applyCommand(ctx: Ctx, c: Command): void {
     case CmdType.UseAbility: return cmdAbility(ctx, p, c.a, c.b);
     case CmdType.UseItem: return cmdUseItem(ctx, p, c.a, c.b, c.c);
     case CmdType.BuyShop: return cmdBuyShop(ctx, p, c.a);
+    case CmdType.ChooseSkill: return cmdChooseSkill(ctx, p, c.a);
     case CmdType.ToggleReady: {
       if (s.phase === Phase.Build) p.ready = !p.ready;
       return;
@@ -149,6 +152,15 @@ function applyCommand(ctx: Ctx, c: Command): void {
     }
     default: return;
   }
+}
+
+function cmdChooseSkill(ctx: Ctx, p: PlayerState, skillId: number): void {
+  if (p.skillPoints <= 0 || !availableSkills(p.skills).some((s) => s.id === skillId)) return;
+  p.skills.push(skillId);
+  p.skills.sort((a, b) => a - b);
+  p.skillPoints--;
+  if (skillId === 3) p.hero.hp = Math.min(heroMaxHp(p), p.hero.hp + Math.floor(heroMaxHp(p) / 4));
+  emit(ctx, EventKind.SkillChosen, p.hero.x, p.hero.y, skillId, p.skillPoints, p.idx);
 }
 
 function deny(ctx: Ctx, p: PlayerState, x: Fx, y: Fx): void {
@@ -275,7 +287,7 @@ function cmdAbility(ctx: Ctx, p: PlayerState, x: Fx, y: Fx): void {
   const d = heroDef(h.defId);
   const ab = d.ability;
   const power = ab.damage + ab.damagePerLevel * (h.level - 1);
-  const heroDmgPct = ctx.mods[p.idx].heroDamagePct;
+  const heroDmgPct = ctx.mods[p.idx].heroDamagePct + (hasSkill(p.skills, 0) ? 15 : 0);
   const dmg = power + pct(power, heroDmgPct);
 
   let tx = x;
@@ -324,7 +336,7 @@ function cmdAbility(ctx: Ctx, p: PlayerState, x: Fx, y: Fx): void {
     default: break;
   }
 
-  const cdCut = Math.min(60, ctx.mods[p.idx].abilityCdPct);
+  const cdCut = Math.min(60, ctx.mods[p.idx].abilityCdPct + (hasSkill(p.skills, 7) ? 22 : 0));
   h.abilityCd = Math.max(1, ab.cooldown - pct(ab.cooldown, cdCut));
 }
 
@@ -903,10 +915,52 @@ function grantXp(ctx: Ctx, p: PlayerState, amount: number): void {
     const d = heroDef(h.defId);
     const gained = lvl - h.level;
     h.level = lvl;
+    p.skillPoints += gained;
     const bonusHp = d.hpPerLevel * gained;
     h.maxHp += bonusHp;
     h.hp = Math.min(h.maxHp, h.hp + bonusHp);
     emit(ctx, EventKind.HeroLevel, h.x, h.y, h.level, 0, p.idx);
+  }
+}
+
+function heroMaxHp(p: PlayerState): number {
+  const d = heroDef(p.hero.defId);
+  let hp = d.hp + d.hpPerLevel * (p.hero.level - 1);
+  if (hasSkill(p.skills, 3)) hp += pct(hp, 25);
+  return hp;
+}
+
+function updateWorldItems(ctx: Ctx): void {
+  const s = ctx.s;
+  if (s.phase === Phase.Combat && --s.nextItemSpawn <= 0 && s.worldItems.length < 3) {
+    const map = ctx.rt.def;
+    let cx = 1, cy = 1;
+    for (let tries = 0; tries < 16; tries++) {
+      cx = nextInt(s, Math.max(1, map.w - 2)) + 1;
+      cy = nextInt(s, Math.max(1, map.h - 2)) + 1;
+      if (!map.blocked.some((b) => b[0] === cx && b[1] === cy)) break;
+    }
+    const drop = { id: nextId(s), itemId: nextInt(s, 7), x: cellCenterFx(cx), y: cellCenterFx(cy), life: sec(35), pulse: 0 };
+    s.worldItems.push(drop);
+    s.nextItemSpawn = sec(16 + nextInt(s, 20));
+    emit(ctx, EventKind.ItemSpawn, drop.x, drop.y, drop.itemId, 0, -1);
+  }
+  for (let i = s.worldItems.length - 1; i >= 0; i--) {
+    const it = s.worldItems[i];
+    it.life--; it.pulse++;
+    let collector: PlayerState | undefined;
+    for (const p of s.players) {
+      if (p.hero.alive && fxDist2(p.hero.x, p.hero.y, it.x, it.y) <= fxMul(fx(0.72), fx(0.72))) { collector = p; break; }
+    }
+    if (collector) {
+      const existing = collector.items.find((v) => v.itemId === it.itemId);
+      const charges = 1 + (hasSkill(collector.skills, 8) ? 1 : 0);
+      if (existing) existing.charges += charges;
+      else if (collector.items.length < MAX_ITEM_SLOTS) collector.items.push({ itemId: it.itemId, charges });
+      else { collector.gold += 80; collector.goldEarned += 80; }
+      emit(ctx, EventKind.ItemPickup, it.x, it.y, it.itemId, charges, collector.idx);
+      s.worldItems.splice(i, 1);
+    } else if (it.life <= 0) s.worldItems.splice(i, 1);
   }
 }
 
@@ -1685,17 +1739,17 @@ function updateHeroes(ctx: Ctx): void {
         h.mx = h.x;
         h.my = h.y;
         h.moving = false;
-        h.maxHp = d.hp + d.hpPerLevel * (h.level - 1) + pct(d.hp, m.heroHpPct);
+        h.maxHp = heroMaxHp(p) + pct(d.hp, m.heroHpPct);
         h.hp = h.maxHp;
       }
       continue;
     }
 
     h.anim++;
-    h.maxHp = d.hp + d.hpPerLevel * (h.level - 1) + pct(d.hp, m.heroHpPct);
+    h.maxHp = heroMaxHp(p) + pct(d.hp, m.heroHpPct);
 
     // Regeneration
-    h.regenAcc += d.regen;
+    h.regenAcc += d.regen + (hasSkill(p.skills, 4) ? 8 : 0);
     const heal = Math.floor(h.regenAcc / TICK_RATE);
     if (heal > 0) {
       h.regenAcc -= heal * TICK_RATE;
@@ -1733,7 +1787,7 @@ function updateHeroes(ctx: Ctx): void {
       h.alive = false;
       h.hp = 0;
       h.moving = false;
-      h.respawn = d.respawn;
+      h.respawn = hasSkill(p.skills, 5) ? Math.max(1, d.respawn - pct(d.respawn, 40)) : d.respawn;
       emit(ctx, EventKind.HeroDeath, h.x, h.y, 0, 0, p.idx);
       continue;
     }
@@ -1750,17 +1804,19 @@ function updateHeroes(ctx: Ctx): void {
 
     // Auto attack
     if (h.attackCd > 0) { h.attackCd--; continue; }
-    const target = heroTarget(ctx, h, d.range);
+    const skillRange = hasSkill(p.skills, 6) ? d.range + pct(d.range, 20) : d.range;
+    const target = heroTarget(ctx, h, skillRange);
     if (!target) continue;
 
     fxNormalize(target.x - h.x, target.y - h.y, tmpVec);
     h.dx = tmpVec.x;
     h.dy = tmpVec.y;
     h.targetId = target.id;
-    h.attackCd = d.attackCd;
+    h.attackCd = hasSkill(p.skills, 1) ? Math.max(1, d.attackCd - pct(d.attackCd, 18)) : d.attackCd;
 
     let damage = d.damage + d.damagePerLevel * (h.level - 1);
-    damage += pct(damage, m.heroDamagePct);
+    damage += pct(damage, m.heroDamagePct + (hasSkill(p.skills, 0) ? 15 : 0));
+    if (hasSkill(p.skills, 2) && target.hp * 100 <= target.maxHp * 35) damage += pct(damage, 25);
     const critPct = d.critPct + m.critPct;
     if (critPct > 0 && chance(s as RngHolder, Math.min(100, critPct))) {
       damage = Math.floor((damage * d.critMult) / 100);
