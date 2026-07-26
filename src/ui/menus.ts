@@ -66,6 +66,11 @@ export interface SetupHandlers {
   extra?: HTMLElement | null;
 }
 
+/** Update a chooser in place so tapping an option never resets screen scroll. */
+function selectChoice(grid: HTMLElement, selected: HTMLElement): void {
+  for (const child of grid.children) child.classList.toggle('selected', child === selected);
+}
+
 export function renderSetup(root: HTMLElement, h: SetupHandlers): void {
   clear(root);
   const model = h.model;
@@ -78,7 +83,7 @@ export function renderSetup(root: HTMLElement, h: SetupHandlers): void {
       () => {
         model.heroId = hero.id;
         h.onChange();
-        renderSetup(root, h);
+        selectChoice(heroGrid, btn);
       },
       el('div', { class: 'name' }, hero.name),
       el('div', { class: 'sub' }, hero.title),
@@ -92,37 +97,35 @@ export function renderSetup(root: HTMLElement, h: SetupHandlers): void {
 
   const mapGrid = el('div', { class: 'chooser' });
   for (const m of MAPS) {
-    mapGrid.appendChild(
-      tapButton(
+    const btn = tapButton(
         `choice${model.mapId === m.id ? ' selected' : ''}`,
         () => {
           if (!h.canEditMap) return;
           model.mapId = m.id;
           h.onChange();
-          renderSetup(root, h);
+          selectChoice(mapGrid, btn);
         },
         el('div', { class: 'name' }, m.name),
         el('div', { class: 'sub' }, m.blurb),
         el('div', { class: 'sub' }, `${m.lanes.length} lane${m.lanes.length > 1 ? 's' : ''}`),
-      ),
-    );
+      );
+    mapGrid.appendChild(btn);
   }
 
   const diffGrid = el('div', { class: 'chooser' });
   DIFFICULTIES.forEach((d, i) => {
-    diffGrid.appendChild(
-      tapButton(
+    const btn = tapButton(
         `choice${model.difficulty === i ? ' selected' : ''}`,
         () => {
           if (!h.canEditMap) return;
           model.difficulty = i;
           h.onChange();
-          renderSetup(root, h);
+          selectChoice(diffGrid, btn);
         },
         el('div', { class: 'name' }, d.name),
         el('div', { class: 'sub' }, `${d.lives} lives · enemies at ${d.hpPct}% health`),
-      ),
-    );
+      );
+    diffGrid.appendChild(btn);
   });
 
   root.appendChild(
