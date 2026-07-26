@@ -1797,6 +1797,12 @@ function updateHeroes(ctx: Ctx): void {
       s.projectiles.push(proj);
       emit(ctx, EventKind.Shot, h.x, h.y, -1, d.projKind, p.idx, target.x, target.y);
     }
+
+    // Lifesteal is paid on the swing, not on the projectile landing, so it
+    // stays deterministic even if the target dies mid-flight.
+    if (d.lifestealPct > 0 && h.hp > 0) {
+      h.hp = Math.min(h.maxHp, h.hp + Math.max(1, pct(damage, d.lifestealPct)));
+    }
   }
 }
 
@@ -1812,6 +1818,9 @@ function heroAttackStats(d: ReturnType<typeof heroDef>, damage: number): TowerSt
     projKind: d.projKind,
     burnDps: d.burnDps,
     burnT: d.burnT,
+    poisonDps: d.poisonDps,
+    poisonT: d.poisonT,
+    armorShred: d.armorShred,
     critMult: d.critMult,
   };
 }

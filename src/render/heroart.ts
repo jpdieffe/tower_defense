@@ -100,25 +100,6 @@ function arm(
   ctx.stroke();
 }
 
-function gear(
-  ctx: CanvasRenderingContext2D,
-  cx: number, cy: number, r: number, teeth: number, angle: number, color: string,
-): void {
-  ctx.beginPath();
-  for (let i = 0; i < teeth * 2; i++) {
-    const a = angle + (i / (teeth * 2)) * Math.PI * 2;
-    const rr = i % 2 === 0 ? r : r * 0.74;
-    const px = cx + Math.cos(a) * rr;
-    const py = cy + Math.sin(a) * rr;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ink(ctx, color, 0.02);
-  circle(ctx, cx, cy, r * 0.3);
-  ink(ctx, '#3b2f22', 0.015);
-}
-
 // --- Paladin --------------------------------------------------------------
 
 function drawPaladin(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
@@ -213,15 +194,15 @@ function drawPaladin(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
   ink(ctx, '#d9433f', 0.022);
 }
 
-// --- Sentinel -------------------------------------------------------------
+// --- High Elf -------------------------------------------------------------
 
-function drawSentinel(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
-  const leaf = '#3f9a55';
-  const dark = '#26663a';
-  const leather = '#8a6a3a';
-  const wood = '#a8763f';
+function drawHighElf(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
+  const leaf = '#dbe7f6';
+  const dark = '#9fc4e8';
+  const leather = '#e0c477';
+  const wood = '#f0e3b8';
 
-  cloak(ctx, dark, 'rgba(8,40,20,0.6)', 0.32);
+  cloak(ctx, '#7fb2dd', 'rgba(30,70,110,0.5)', 0.32);
 
   // Quiver on the back.
   ctx.save();
@@ -303,17 +284,24 @@ function drawSentinel(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
   ctx.closePath();
   ink(ctx, dark);
   circle(ctx, 0, -0.15, 0.085);
-  ink(ctx, '#1b2b20', 0.02);
-  ctx.fillStyle = '#9df0b4';
+  ink(ctx, '#f2dcc0', 0.02);
+  ctx.fillStyle = '#2f6fa8';
   ctx.beginPath();
   ctx.arc(-0.035, -0.18, 0.018, 0, Math.PI * 2);
   ctx.arc(0.035, -0.18, 0.018, 0, Math.PI * 2);
   ctx.fill();
+  // Circlet.
+  ctx.beginPath();
+  ctx.moveTo(-0.075, -0.23);
+  ctx.lineTo(0.075, -0.23);
+  ctx.lineWidth = 0.022;
+  ctx.strokeStyle = leather;
+  ctx.stroke();
 }
 
-// --- Archmage -------------------------------------------------------------
+// --- Magician -------------------------------------------------------------
 
-function drawArchmage(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
+function drawMagician(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
   const robe = '#7a4ec9';
   const deep = '#4a2c86';
   const gold = '#f2c14e';
@@ -389,102 +377,196 @@ function drawArchmage(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
   ctx.fill();
 }
 
-// --- Tinker ---------------------------------------------------------------
+// --- Orc ------------------------------------------------------------------
 
-function drawTinker(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
-  const canvasCol = '#9a7a52';
-  const brass = '#d9a441';
-  const steel = '#b8c1cc';
+function drawOrc(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
+  const hide = '#6fae42';
+  const hideDark = '#4e8130';
+  const leather = '#6b4a2c';
+  const iron = '#9aa4b0';
 
-  // Backpack boiler with a turning gear.
-  rounded(ctx, 0, 0.22, 0.38, 0.28, 0.1);
-  ink(ctx, '#6f5637');
-  gear(ctx, -0.08, 0.24, 0.085, 8, s.time * 0.0018, brass);
-  circle(ctx, 0.1, 0.22, 0.06);
-  ink(ctx, '#88d6ff', 0.022);
-  // Steam puff.
-  ctx.globalAlpha = 0.22 + Math.sin(s.time * 0.004) * 0.12;
-  circle(ctx, 0.13, 0.3 + Math.sin(s.time * 0.003) * 0.015, 0.045);
-  ctx.fillStyle = '#e8f1ff';
-  ctx.fill();
-  ctx.globalAlpha = 1;
+  // Fur mantle trailing behind.
+  cloak(ctx, '#7a5a38', 'rgba(40,24,12,0.6)', 0.34);
 
-  // Wrench arm: winds up and cranks over on attack.
+  // Off hand: spiked bracer / small buckler.
   ctx.save();
-  ctx.translate(0.2, 0.0);
-  ctx.rotate(0.7 - s.swing * 1.3);
-  arm(ctx, 0, 0, 0.02, -0.14, canvasCol, 0.1);
-  rounded(ctx, 0.02, -0.32, 0.075, 0.34, 0.03);
-  ink(ctx, steel, 0.025);
-  ctx.beginPath();
-  ctx.moveTo(-0.06, -0.44);
-  ctx.lineTo(-0.06, -0.56);
-  ctx.lineTo(0.02, -0.56);
-  ctx.lineTo(0.02, -0.5);
-  ctx.lineTo(0.06, -0.5);
-  ctx.lineTo(0.06, -0.56);
-  ctx.lineTo(0.14, -0.56);
-  ctx.lineTo(0.14, -0.44);
-  ctx.quadraticCurveTo(0.04, -0.38, -0.06, -0.44);
-  ctx.closePath();
-  ink(ctx, steel, 0.025);
+  ctx.translate(-0.26, 0.02);
+  ctx.rotate(-0.2 - s.swing * 0.2);
+  arm(ctx, 0.06, 0.02, 0, -0.1, hideDark, 0.12);
+  circle(ctx, 0, -0.16, 0.12);
+  ink(ctx, iron);
+  circle(ctx, 0, -0.16, 0.04);
+  ink(ctx, '#5f6873', 0.02);
   ctx.restore();
 
-  // Off hand holding a sparking bolt.
-  arm(ctx, -0.18, -0.04, -0.26, -0.2, canvasCol, 0.09);
-  circle(ctx, -0.27, -0.24, 0.045);
-  ink(ctx, brass, 0.02);
-  ctx.globalAlpha = 0.5 + Math.sin(s.time * 0.012) * 0.4;
-  circle(ctx, -0.27, -0.24, 0.08);
-  ctx.fillStyle = 'rgba(160,220,255,0.5)';
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // Torso, belt, pouches.
-  rounded(ctx, 0, 0, 0.4, 0.36, 0.13);
-  ink(ctx, canvasCol);
-  rounded(ctx, 0, 0.06, 0.42, 0.07, 0.03);
-  ink(ctx, '#5d4429', 0.02);
-  circle(ctx, 0.14, 0.07, 0.035);
-  ink(ctx, brass, 0.018);
+  // Weapon hand: a huge double-bit war axe.
+  ctx.save();
+  ctx.translate(0.24 - s.swing * 0.04, 0.04 - s.swing * 0.08);
+  ctx.rotate(0.75 - s.swing * 0.95);
+  arm(ctx, -0.06, 0.02, 0.02, -0.1, hideDark, 0.12);
+  rounded(ctx, 0.01, -0.28, 0.06, 0.46, 0.02);
+  ink(ctx, leather, 0.024);
+  // Flat double-bit head across the haft.
   ctx.beginPath();
-  ctx.moveTo(-0.12, -0.16);
-  ctx.lineTo(-0.05, 0.05);
-  ctx.moveTo(0.12, -0.16);
-  ctx.lineTo(0.05, 0.05);
-  ctx.lineWidth = 0.03;
-  ctx.strokeStyle = '#5d4429';
-  ctx.stroke();
-
-  // Head with a flat cap and goggles.
-  circle(ctx, 0, -0.12, 0.145);
-  ink(ctx, '#e0b083');
-  ctx.beginPath();
-  ctx.arc(0, -0.12, 0.145, Math.PI * 0.06, Math.PI * 0.94);
+  ctx.moveTo(-0.25, -0.44);
+  ctx.lineTo(-0.09, -0.53);
+  ctx.lineTo(0.11, -0.53);
+  ctx.lineTo(0.27, -0.44);
+  ctx.lineTo(0.11, -0.35);
+  ctx.lineTo(-0.09, -0.35);
   ctx.closePath();
-  ink(ctx, '#7d5b8c', 0.022);
-  rounded(ctx, 0, -0.2, 0.28, 0.075, 0.03);
-  ink(ctx, '#4a3a2c', 0.02);
-  ctx.fillStyle = '#8de1ff';
-  circle(ctx, -0.07, -0.2, 0.037);
-  ctx.fill();
-  circle(ctx, 0.07, -0.2, 0.037);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-  ctx.lineWidth = 0.014;
+  ink(ctx, '#cdd6e0', 0.03);
   ctx.beginPath();
-  ctx.moveTo(-0.085, -0.215);
-  ctx.lineTo(-0.06, -0.215);
-  ctx.moveTo(0.055, -0.215);
-  ctx.lineTo(0.08, -0.215);
+  ctx.moveTo(-0.09, -0.35);
+  ctx.lineTo(-0.09, -0.53);
+  ctx.moveTo(0.11, -0.35);
+  ctx.lineTo(0.11, -0.53);
+  ctx.lineWidth = 0.02;
+  ctx.strokeStyle = 'rgba(90,105,125,0.75)';
   ctx.stroke();
+  ctx.restore();
+
+  // Broad torso with crossed straps.
+  rounded(ctx, 0, 0.0, 0.5, 0.42, 0.17);
+  ink(ctx, hide);
+  ctx.save();
+  rounded(ctx, 0, 0.0, 0.5, 0.42, 0.17);
+  ctx.clip();
+  ctx.strokeStyle = leather;
+  ctx.lineWidth = 0.07;
+  ctx.beginPath();
+  ctx.moveTo(-0.22, -0.22);
+  ctx.lineTo(0.18, 0.24);
+  ctx.stroke();
+  ctx.restore();
+
+  // Spiked shoulders.
+  for (const sx of [-1, 1]) {
+    circle(ctx, sx * 0.26, 0.02, 0.125);
+    ink(ctx, hideDark);
+    ctx.beginPath();
+    ctx.moveTo(sx * 0.26, -0.09);
+    ctx.lineTo(sx * 0.31, -0.01);
+    ctx.lineTo(sx * 0.21, -0.01);
+    ctx.closePath();
+    ink(ctx, iron, 0.018);
+  }
+
+  // Head: heavy brow, tusks, topknot.
+  ctx.beginPath();
+  ctx.moveTo(0, 0.06);
+  ctx.quadraticCurveTo(-0.02, 0.24, 0.04, 0.32);
+  ctx.quadraticCurveTo(0.02, 0.16, 0.05, 0.05);
+  ctx.closePath();
+  ink(ctx, '#2f2418', 0.022);
+  circle(ctx, 0, -0.15, 0.16);
+  ink(ctx, hide);
+  rounded(ctx, 0, -0.24, 0.22, 0.06, 0.03);
+  ink(ctx, hideDark, 0.02);
+  ctx.fillStyle = '#ffd94a';
+  circle(ctx, -0.055, -0.21, 0.026);
+  ctx.fill();
+  circle(ctx, 0.055, -0.21, 0.026);
+  ctx.fill();
+  for (const sx of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(sx * 0.075, -0.28);
+    ctx.quadraticCurveTo(sx * 0.115, -0.36, sx * 0.06, -0.4);
+    ctx.quadraticCurveTo(sx * 0.085, -0.33, sx * 0.045, -0.28);
+    ctx.closePath();
+    ink(ctx, '#f4efdc', 0.018);
+  }
+}
+
+// --- Dark Elf -------------------------------------------------------------
+
+function drawDarkElf(ctx: CanvasRenderingContext2D, s: HeroArtState): void {
+  const cloth = '#5a4380';
+  const dark = '#3b2b58';
+  const trim = '#c78dff';
+  const steel = '#a394c4';
+  const pull = s.swing;
+
+  cloak(ctx, dark, 'rgba(16,8,30,0.7)', 0.3);
+
+  // Torso.
+  rounded(ctx, 0, 0, 0.32, 0.38, 0.13);
+  ink(ctx, cloth);
+  rounded(ctx, 0, 0.06, 0.34, 0.06, 0.03);
+  ink(ctx, trim, 0.02);
+
+  // Both hands on the crossbow.
+  arm(ctx, -0.15, -0.06, -0.06, -0.2, cloth, 0.085);
+  arm(ctx, 0.15, -0.06, 0.06, -0.12 - pull * 0.04, cloth, 0.085);
+
+  // Crossbow: prod across the front, stock running back to the shoulder.
+  ctx.save();
+  ctx.translate(0, -0.06);
+  ctx.beginPath();
+  ctx.moveTo(-0.28, -0.3);
+  ctx.lineTo(-0.05, -0.26);
+  ctx.lineTo(0.05, -0.26);
+  ctx.lineTo(0.28, -0.3);
+  ctx.lineTo(0.28, -0.22);
+  ctx.lineTo(0.05, -0.19);
+  ctx.lineTo(-0.05, -0.19);
+  ctx.lineTo(-0.28, -0.22);
+  ctx.closePath();
+  ink(ctx, steel, 0.026);
+  // String: snaps forward as the shot goes off.
+  const rest = -0.24 + (1 - pull) * 0.2;
+  ctx.beginPath();
+  ctx.moveTo(-0.27, -0.26);
+  ctx.lineTo(0, rest);
+  ctx.lineTo(0.27, -0.26);
+  ctx.lineWidth = 0.016;
+  ctx.strokeStyle = '#e6dcff';
+  ctx.stroke();
+  if (pull < 0.4) {
+    ctx.beginPath();
+    ctx.moveTo(0, -0.02);
+    ctx.lineTo(0, -0.36);
+    ctx.lineWidth = 0.022;
+    ctx.strokeStyle = '#9ff05a';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -0.42);
+    ctx.lineTo(-0.035, -0.33);
+    ctx.lineTo(0.035, -0.33);
+    ctx.closePath();
+    ink(ctx, '#d5ffb0', 0.015);
+  }
+  rounded(ctx, 0, -0.08, 0.08, 0.36, 0.025);
+  ink(ctx, '#4a3a2e', 0.024);
+  ctx.restore();
+
+  // Hood with a long trailing point and glowing eyes.
+  ctx.beginPath();
+  ctx.moveTo(0, 0.16);
+  ctx.quadraticCurveTo(-0.16, -0.02, -0.13, -0.16);
+  ctx.quadraticCurveTo(0, -0.32, 0.13, -0.16);
+  ctx.quadraticCurveTo(0.16, -0.02, 0, 0.16);
+  ctx.closePath();
+  ink(ctx, dark);
+  circle(ctx, 0, -0.16, 0.08);
+  ink(ctx, '#cfc3e0', 0.02);
+  ctx.fillStyle = '#ff5fd0';
+  ctx.beginPath();
+  ctx.arc(-0.033, -0.19, 0.019, 0, Math.PI * 2);
+  ctx.arc(0.033, -0.19, 0.019, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Poison vial on the hip.
+  circle(ctx, -0.19, 0.14, 0.045);
+  ink(ctx, '#9ff05a', 0.02);
 }
 
 const PAINTERS: Record<number, (ctx: CanvasRenderingContext2D, s: HeroArtState) => void> = {
   [HERO.Paladin]: drawPaladin,
-  [HERO.Sentinel]: drawSentinel,
-  [HERO.Archmage]: drawArchmage,
-  [HERO.Tinker]: drawTinker,
+  [HERO.Orc]: drawOrc,
+  [HERO.DarkElf]: drawDarkElf,
+  [HERO.HighElf]: drawHighElf,
+  [HERO.Magician]: drawMagician,
 };
 
 /** Draw hero `defId` centred on (x, y), `size` pixels tall, facing `rot`. */

@@ -1,7 +1,7 @@
 import type { MatchConfig } from '../sim/state';
 import type { GameState } from '../sim/types';
 
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /** Host plus two guests. The star topology below is sized for exactly this. */
 export const MAX_PLAYERS = 3;

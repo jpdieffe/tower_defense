@@ -1,6 +1,5 @@
 import { fx, type Fx } from '../core/fixed';
 import { DmgType, GroundKind, ProjKind, sec, TICK_RATE } from '../sim/types';
-import { UNIT } from './art';
 
 const cps = (cellsPerSecond: number): Fx => Math.floor(fx(cellsPerSecond) / TICK_RATE);
 
@@ -47,7 +46,7 @@ export interface HeroDef {
   projKind: number;
   moveSpeed: Fx;
   respawn: number;
-  art: number;
+  /** Class colour, used for HUD accents and ability effects. */
   color: string;
   ability: HeroAbility;
   /** Passive knobs read by the simulation. */
@@ -57,6 +56,11 @@ export interface HeroDef {
   critMult: number;
   burnDps: number;
   burnT: number;
+  poisonDps: number;
+  poisonT: number;
+  armorShred: number;
+  /** Percentage of damage dealt returned to the hero as health. */
+  lifestealPct: number;
   goldPct: number;
   towerRatePct: number;
   towerAuraRadius: Fx;
@@ -64,9 +68,10 @@ export interface HeroDef {
 
 export const HERO = {
   Paladin: 0,
-  Sentinel: 1,
-  Archmage: 2,
-  Tinker: 3,
+  Orc: 1,
+  DarkElf: 2,
+  HighElf: 3,
+  Magician: 4,
 } as const;
 
 export const HEROES: readonly HeroDef[] = [
@@ -83,7 +88,7 @@ export const HEROES: readonly HeroDef[] = [
     attackCd: sec(0.8), range: fx(1.15), splash: fx(0.75),
     dmgType: DmgType.Physical, projSpeed: 0, projKind: ProjKind.HeroShot,
     moveSpeed: cps(2.6), respawn: sec(12),
-    art: UNIT.soldierBlue, color: '#5ea8ff',
+    color: '#5ea8ff',
     ability: {
       kind: AbilityKind.ShieldSlam,
       name: 'Thunder Clap',
@@ -93,22 +98,75 @@ export const HEROES: readonly HeroDef[] = [
     },
     auraSlowPct: 18, auraSlowRadius: fx(2.0),
     critPct: 0, critMult: 200, burnDps: 0, burnT: 0,
+    poisonDps: 0, poisonT: 0, armorShred: 0, lifestealPct: 0,
     goldPct: 0, towerRatePct: 0, towerAuraRadius: 0,
   },
   {
-    id: HERO.Sentinel,
-    key: 'sentinel',
-    name: 'Sentinel',
-    title: 'Eye of the Silverwood',
-    desc: 'Fast, fragile, and lethal from range. Kite, never brawl.',
-    passiveName: 'Marksmanship',
-    passiveDesc: '22% of shots crit for double damage.',
-    hp: 235, hpPerLevel: 32, regen: 4,
-    damage: 28, damagePerLevel: 8,
-    attackCd: sec(0.55), range: fx(3.4), splash: 0,
-    dmgType: DmgType.Physical, projSpeed: cps(20), projKind: ProjKind.HeroShot,
+    id: HERO.Orc,
+    key: 'orc',
+    name: 'Orc',
+    title: 'Warchief of the Broken Tusk',
+    desc: 'Slow, enormous cleaves that heal him. The longer the brawl, the better.',
+    passiveName: 'Bloodthirst',
+    passiveDesc: 'Heals for 22% of all damage he deals.',
+    hp: 500, hpPerLevel: 74, regen: 5,
+    damage: 38, damagePerLevel: 10,
+    attackCd: sec(1.05), range: fx(1.25), splash: fx(1.05),
+    dmgType: DmgType.Physical, projSpeed: 0, projKind: ProjKind.HeroShot,
+    moveSpeed: cps(2.5), respawn: sec(13),
+    color: '#7bc043',
+    ability: {
+      kind: AbilityKind.ShieldSlam,
+      name: 'Bloodrage',
+      desc: 'Spin through everything nearby: massive damage and a short stagger.',
+      cooldown: sec(13), radius: fx(2.7), damage: 95, damagePerLevel: 26,
+      stunT: sec(0.5), duration: 0, targeted: false, castRange: 0,
+    },
+    auraSlowPct: 0, auraSlowRadius: 0,
+    critPct: 12, critMult: 220, burnDps: 0, burnT: 0,
+    poisonDps: 0, poisonT: 0, armorShred: 2, lifestealPct: 22,
+    goldPct: 0, towerRatePct: 0, towerAuraRadius: 0,
+  },
+  {
+    id: HERO.DarkElf,
+    key: 'dark-elf',
+    name: 'Dark Elf',
+    title: 'Widow of the Underdark',
+    desc: 'Venomed bolts that rot armour away. Fragile, but nothing stays healthy.',
+    passiveName: 'Venomed Bolts',
+    passiveDesc: 'Every hit poisons for 18/s over 3s and strips 2 armour.',
+    hp: 230, hpPerLevel: 30, regen: 4,
+    damage: 20, damagePerLevel: 6,
+    attackCd: sec(0.5), range: fx(3.1), splash: 0,
+    dmgType: DmgType.Physical, projSpeed: cps(19), projKind: ProjKind.Bolt,
+    moveSpeed: cps(3.1), respawn: sec(12),
+    color: '#b06cff',
+    ability: {
+      kind: AbilityKind.Sentry,
+      name: 'Shade Totem',
+      desc: 'Plant a shadow totem that fires on its own for 20 seconds.',
+      cooldown: sec(18), radius: fx(0.5), damage: 0, damagePerLevel: 0,
+      stunT: 0, duration: sec(20), targeted: true, castRange: fx(4.5),
+    },
+    auraSlowPct: 0, auraSlowRadius: 0,
+    critPct: 0, critMult: 200, burnDps: 0, burnT: 0,
+    poisonDps: 18, poisonT: sec(3), armorShred: 2, lifestealPct: 0,
+    goldPct: 0, towerRatePct: 0, towerAuraRadius: 0,
+  },
+  {
+    id: HERO.HighElf,
+    key: 'high-elf',
+    name: 'High Elf',
+    title: 'Warden of the Silver Spires',
+    desc: 'Lethal from range and she keeps the whole line firing faster.',
+    passiveName: 'Elven Cadence',
+    passiveDesc: '20% of shots crit, and towers within 2.4 cells fire 14% faster.',
+    hp: 240, hpPerLevel: 32, regen: 4,
+    damage: 27, damagePerLevel: 8,
+    attackCd: sec(0.55), range: fx(3.6), splash: 0,
+    dmgType: DmgType.Physical, projSpeed: cps(22), projKind: ProjKind.HeroShot,
     moveSpeed: cps(3.0), respawn: sec(12),
-    art: UNIT.soldierGreen, color: '#6ddc72',
+    color: '#7ee8ff',
     ability: {
       kind: AbilityKind.ArrowStorm,
       name: 'Starfall',
@@ -117,13 +175,14 @@ export const HEROES: readonly HeroDef[] = [
       stunT: 0, duration: sec(3.5), targeted: true, castRange: fx(6),
     },
     auraSlowPct: 0, auraSlowRadius: 0,
-    critPct: 22, critMult: 200, burnDps: 0, burnT: 0,
-    goldPct: 0, towerRatePct: 0, towerAuraRadius: 0,
+    critPct: 20, critMult: 200, burnDps: 0, burnT: 0,
+    poisonDps: 0, poisonT: 0, armorShred: 0, lifestealPct: 0,
+    goldPct: 0, towerRatePct: 14, towerAuraRadius: fx(2.4),
   },
   {
-    id: HERO.Archmage,
-    key: 'archmage',
-    name: 'Archmage',
+    id: HERO.Magician,
+    key: 'magician',
+    name: 'Magician',
     title: 'Keeper of the Violet Flame',
     desc: 'Every attack splashes and burns. Best against dense packs.',
     passiveName: 'Searing Brand',
@@ -133,7 +192,7 @@ export const HEROES: readonly HeroDef[] = [
     attackCd: sec(0.9), range: fx(3.0), splash: fx(0.85),
     dmgType: DmgType.Fire, projSpeed: cps(13), projKind: ProjKind.Ember,
     moveSpeed: cps(2.6), respawn: sec(12),
-    art: UNIT.soldierOrange, color: '#ff8a45',
+    color: '#ff8a45',
     ability: {
       kind: AbilityKind.Meteor,
       name: 'Rain of Fire',
@@ -143,32 +202,8 @@ export const HEROES: readonly HeroDef[] = [
     },
     auraSlowPct: 0, auraSlowRadius: 0,
     critPct: 0, critMult: 200, burnDps: 8, burnT: sec(2),
+    poisonDps: 0, poisonT: 0, armorShred: 0, lifestealPct: 0,
     goldPct: 0, towerRatePct: 0, towerAuraRadius: 0,
-  },
-  {
-    id: HERO.Tinker,
-    key: 'tinker',
-    name: 'Tinker',
-    title: 'Quartermaster of the Steamworks',
-    desc: 'Weak alone, but she pays for herself and speeds up your line.',
-    passiveName: 'Goblin Workshop',
-    passiveDesc: '+12% gold, and towers within 2.4 cells fire 15% faster.',
-    hp: 250, hpPerLevel: 36, regen: 5,
-    damage: 15, damagePerLevel: 4,
-    attackCd: sec(0.7), range: fx(2.6), splash: 0,
-    dmgType: DmgType.Energy, projSpeed: cps(18), projKind: ProjKind.Spark,
-    moveSpeed: cps(2.8), respawn: sec(12),
-    art: UNIT.soldierGrey, color: '#c7a2ff',
-    ability: {
-      kind: AbilityKind.Sentry,
-      name: 'Clockwork Sentry',
-      desc: 'Assemble a clockwork turret that fights for 20 seconds.',
-      cooldown: sec(18), radius: fx(0.5), damage: 0, damagePerLevel: 0,
-      stunT: 0, duration: sec(20), targeted: true, castRange: fx(4.5),
-    },
-    auraSlowPct: 0, auraSlowRadius: 0,
-    critPct: 0, critMult: 200, burnDps: 0, burnT: 0,
-    goldPct: 12, towerRatePct: 15, towerAuraRadius: fx(2.4),
   },
 ];
 
