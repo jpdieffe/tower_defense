@@ -7,9 +7,10 @@
  * art instead: distinct silhouettes, real weapons, and a little life —
  * a sword swing, a drawn bowstring, a pulsing staff orb, a spinning gear.
  *
- * Everything is drawn in unit space: the sprite occupies roughly [-0.5, 0.5]
- * and faces "up" (-Y), matching the tilesheet's orientation, so the renderer
- * can keep using the same rotation it uses for every other unit.
+ * Everything is drawn as a camera-facing three-quarter miniature. The feet sit
+ * on the map plane while the torso, face and weapons rise toward the camera;
+ * movement direction only mirrors/leans the figure instead of spinning a flat
+ * top-down cutout around the ground.
  */
 
 import { HERO } from '../content/heroes';
@@ -31,6 +32,14 @@ export interface HeroArtState {
 
 const OUTLINE = 'rgba(22,16,30,0.85)';
 const LW = 0.035;
+
+const LEG_COLORS: Record<number, readonly [string, string]> = {
+  [HERO.Paladin]: ['#8d9ab2', '#59677e'],
+  [HERO.Orc]: ['#4e8130', '#49351f'],
+  [HERO.DarkElf]: ['#493665', '#241c35'],
+  [HERO.HighElf]: ['#b9cee5', '#6d91b5'],
+  [HERO.Magician]: ['#55318f', '#2c1b4e'],
+};
 
 function rounded(
   ctx: CanvasRenderingContext2D,
@@ -98,6 +107,30 @@ function arm(
   ctx.lineWidth = w;
   ctx.strokeStyle = color;
   ctx.stroke();
+}
+
+/** Foreshortened legs shared by every class, drawn behind its robe/armour. */
+function drawIsoLegs(ctx: CanvasRenderingContext2D, defId: number, s: HeroArtState): void {
+  const colors = LEG_COLORS[defId] ?? LEG_COLORS[HERO.Paladin];
+  const stride = Math.sin(s.time * 0.014) * 0.055 * s.walk;
+  for (const side of [-1, 1]) {
+    const near = side === 1;
+    const step = stride * side;
+    // Rear leg first, then the nearer leg for a readable three-quarter stance.
+    ctx.save();
+    ctx.translate(side * 0.105, 0.25 + step);
+    ctx.rotate(side * 0.07);
+    rounded(ctx, 0, 0.12, 0.13, 0.34, 0.06);
+    ink(ctx, colors[0], 0.028);
+    rounded(ctx, side * 0.018, 0.29, 0.17, 0.13, 0.055);
+    ink(ctx, colors[1], 0.026);
+    if (near) {
+      ctx.globalAlpha = 0.22;
+      rounded(ctx, -0.025, 0.06, 0.035, 0.22, 0.015);
+      ctx.fillStyle = '#fff'; ctx.fill();
+    }
+    ctx.restore();
+  }
 }
 
 // --- Paladin --------------------------------------------------------------
@@ -581,28 +614,34 @@ export function drawHeroSprite(
   const paint = PAINTERS[defId] ?? drawPaladin;
   const bob = state.walk > 0 ? Math.sin(state.time * 0.014) * size * 0.018 : 0;
 
-  // Contact shadow + team ring stay axis-aligned on the ground.
+  // Contact shadow + team ring stay axis-aligned on the ground. Their vertical
+  // squash establishes the same isometric ground plane as the battlefield.
   ctx.save();
   ctx.translate(x, y);
   ctx.globalAlpha = 0.3;
   ctx.fillStyle = '#000';
   ctx.beginPath();
-  ctx.ellipse(0, size * 0.15, size * 0.25, size * 0.13, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, size * 0.28, size * 0.27, size * 0.105, -0.08, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 0.8;
   ctx.strokeStyle = state.team;
   ctx.lineWidth = size * 0.026;
   ctx.beginPath();
-  ctx.ellipse(0, size * 0.18, size * 0.42, size * 0.24, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, size * 0.3, size * 0.43, size * 0.2, -0.08, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 
   ctx.save();
-  ctx.translate(x, y + bob);
-  ctx.rotate(state.rot);
-  ctx.scale(size, size);
+  ctx.translate(x, y + bob - size * 0.13);
+  // Camera-facing three-quarter presentation: mirror when travelling left,
+  // then add a small directional lean. Crucially, the body remains upright.
+  const facingX = Math.sin(state.rot);
+  const mirror = facingX < -0.08 ? -1 : 1;
+  ctx.scale(size * mirror, size * 1.08);
+  ctx.transform(1, 0, -0.08, 1, facingX * 0.025, 0);
   ctx.lineJoin = 'round';
   ctx.miterLimit = 2;
+  drawIsoLegs(ctx, defId, state);
   paint(ctx, state);
   ctx.restore();
 }
