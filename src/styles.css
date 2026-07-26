@@ -628,7 +628,7 @@ input.code {
   position: absolute;
   left: calc(var(--safe-left) + 8px);
   right: calc(var(--safe-right) + 8px);
-  bottom: calc(var(--safe-bottom) + 150px);
+  bottom: calc(var(--hud-bottom-height, 156px) + 8px);
   background: var(--panel);
   border: 1px solid var(--edge);
   border-radius: 16px;

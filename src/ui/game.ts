@@ -213,7 +213,11 @@ export class GameScreen {
   }
 
   private handleResize = (): void => {
-    this.renderer.resize(this.padTop(), this.padBottom());
+    const bottomPad = this.padBottom();
+    // Keep floating panels anchored above the real HUD height. The bottom bar
+    // varies with safe-area insets, screen size, and the number of item slots.
+    this.root.style.setProperty('--hud-bottom-height', `${bottomPad}px`);
+    this.renderer.resize(this.padTop(), bottomPad);
   };
 
   private idleTimer = 0;
