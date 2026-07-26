@@ -71,7 +71,7 @@ body {
 .placement-desc { margin-top: 7px; color: #e6edf7; font-size: 13px; line-height: 1.35; }
 .placement-tip { margin-top: 6px; color: #8fa4be; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
 
-.skill-overlay { align-items: center; justify-content: center; overflow-y: auto; padding: 18px; background: rgba(5,8,15,.86); backdrop-filter: blur(7px); }
+.skill-overlay { position:absolute; inset:0; z-index:30; display:flex; align-items:center; justify-content:center; overflow-y:auto; padding:18px; background:rgba(5,8,15,.86); backdrop-filter:blur(7px); pointer-events:auto; touch-action:pan-y; }
 .skill-panel { width: min(680px, 96vw); max-height: 92vh; overflow-y: auto; padding: 24px; border: 1px solid #ad8742; border-radius: 16px; background: linear-gradient(160deg,#172236,#0c111c 70%); box-shadow: 0 24px 80px #000, inset 0 1px rgba(255,255,255,.08); }
 .skill-panel h2 { margin: 2px 0 0; color: #fff2c0; font-size: 28px; }
 .skill-kicker { color: #ffd447; font-size: 10px; letter-spacing: .24em; font-weight: 800; }
@@ -80,12 +80,14 @@ body {
 .branch-name { display:flex; align-items:center; color:#d5b86c; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
 .skill-card { display:flex; gap:9px; padding:11px; text-align:left; color:#d9e2ed; border:1px solid #34435a; border-radius:10px; background:#111a28; min-height:76px; }
 .skill-card.available { border-color:#d0a94f; background:linear-gradient(145deg,#2b2840,#161e2b); cursor:pointer; box-shadow:0 0 16px rgba(255,212,71,.1); }
+.skill-card.available::after { content:'CHOOSE'; align-self:center; margin-left:auto; color:#ffd447; font-size:8px; font-weight:900; letter-spacing:.08em; }
 .skill-card.available:hover { transform:translateY(-2px); border-color:#ffe087; }
 .skill-card.locked { opacity:.38; }
 .skill-card.owned { opacity:.75; border-color:#4cba8b; background:#10251f; }
 .skill-icon { font-size:24px; color:#ffd447; min-width:27px; }
 .skill-name { color:#fff; font-size:12px; font-weight:800; margin-bottom:4px; }
 .skill-desc { color:#9cabbc; font-size:10px; line-height:1.35; }
+.skill-later { width:100%; margin-top:14px; }
 @media (max-width: 620px) { .skill-branch { grid-template-columns: 64px 1fr; } .skill-card { grid-column:2; } .branch-name { grid-row:1 / span 3; } .skill-panel { padding:18px 12px; } }
 
 /* ---------------------------------------------------------------- screens */

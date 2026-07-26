@@ -649,6 +649,7 @@ export class GameScreen {
       }
       panel.appendChild(row);
     }
+    panel.appendChild(tapButton('btn ghost skill-later', () => this.closeOverlay(), 'Choose later'));
     const overlay = el('div', { class: 'overlay skill-overlay' }, panel);
     this.overlay = overlay; this.root.appendChild(overlay);
   }
