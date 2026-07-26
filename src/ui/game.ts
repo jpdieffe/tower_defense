@@ -635,28 +635,62 @@ export class GameScreen {
   private openSkillTree(): void {
     if (this.me.skillPoints <= 0 || this.overlay) return;
     const choices = availableSkills(this.me.skills);
+    let selected = choices[0] ?? SKILLS[0];
     const panel = el('div', { class: 'skill-panel' },
       el('div', { class: 'skill-kicker' }, 'HERO LEVEL UP'),
-      el('h2', {}, 'Choose a skill'),
+      el('h2', {}, 'Choose your path'),
       el('p', { class: 'skill-sub' }, `${this.me.skillPoints} skill point${this.me.skillPoints === 1 ? '' : 's'} available`),
     );
+    const tree = el('div', { class: 'skill-tree' });
+    tree.appendChild(el('div', { class: 'skill-root' }, el('div', { class: 'skill-root-node' }, heroDef(this.me.hero.defId).name)));
+    const branches = el('div', { class: 'skill-branches' });
+    const nodes = new Map<number, HTMLElement>();
+    const detail = el('div', { class: 'skill-detail' });
+    const renderDetail = (): void => {
+      for (const [id, node] of nodes) toggleClass(node, 'selected', id === selected.id);
+      const owned = this.me.skills.includes(selected.id);
+      const available = choices.some((v) => v.id === selected.id);
+      const requirement = selected.requires >= 0 ? skillDef(selected.requires).name : '';
+      clear(detail);
+      detail.append(
+        el('div', { class: 'skill-detail-icon' }, selected.icon),
+        el('div', { class: 'skill-detail-copy' },
+          el('div', { class: 'skill-detail-head' },
+            el('div', { class: 'skill-name' }, selected.name),
+            el('div', { class: `skill-status ${owned ? 'owned' : available ? 'ready' : 'locked'}` }, owned ? 'LEARNED' : available ? 'AVAILABLE' : 'LOCKED'),
+          ),
+          el('div', { class: 'skill-desc' }, selected.desc),
+          !owned && !available && requirement ? el('div', { class: 'skill-requires' }, `Requires ${requirement}`) : null,
+        ),
+        tapButton(`btn skill-unlock${available ? ' good' : ' ghost'}`, () => {
+          if (!available) return;
+          this.ls.queue(chooseSkill(this.opts.localPlayer, selected.id));
+          this.closeOverlay();
+        }, owned ? '✓ Learned' : available ? 'Unlock' : '🔒 Locked'),
+      );
+    };
     for (const branch of ['Might', 'Survival', 'Tactics'] as const) {
-      const row = el('div', { class: 'skill-branch' }, el('div', { class: 'branch-name' }, branch));
+      const path = el('div', { class: `skill-path ${branch.toLowerCase()}` }, el('div', { class: 'branch-name' }, branch));
       for (const sk of SKILLS.filter((v) => v.branch === branch)) {
         const owned = this.me.skills.includes(sk.id);
         const available = choices.some((v) => v.id === sk.id);
-        const card = tapButton(`skill-card${owned ? ' owned' : ''}${available ? ' available' : ' locked'}`, () => {
-          if (!available) return;
-          this.ls.queue(chooseSkill(this.opts.localPlayer, sk.id));
-          this.closeOverlay();
-        }, el('div', { class: 'skill-icon' }, sk.icon), el('div', {}, el('div', { class: 'skill-name' }, sk.name), el('div', { class: 'skill-desc' }, sk.desc)));
-        row.appendChild(card);
+        const node = tapButton(`skill-node${owned ? ' owned' : ''}${available ? ' available' : ' locked'}`, () => {
+          selected = sk;
+          audio.play('click', { volume: 0.35 });
+          renderDetail();
+        }, el('span', { class: 'skill-node-icon' }, sk.icon), el('span', { class: 'skill-node-tier' }, String(sk.tier)));
+        node.title = sk.name;
+        nodes.set(sk.id, node);
+        path.appendChild(node);
       }
-      panel.appendChild(row);
+      branches.appendChild(path);
     }
+    tree.appendChild(branches);
+    panel.append(tree, detail);
     panel.appendChild(tapButton('btn ghost skill-later', () => this.closeOverlay(), 'Choose later'));
     const overlay = el('div', { class: 'overlay skill-overlay' }, panel);
     this.overlay = overlay; this.root.appendChild(overlay);
+    renderDetail();
   }
 
   private refreshBuildBar(): void {
