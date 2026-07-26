@@ -1,6 +1,6 @@
 import { fx, type Fx } from '../core/fixed';
 import { DmgType, GroundKind, ProjKind, sec, TICK_RATE } from '../sim/types';
-import { HEAD, PLATFORM } from './art';
+import { HEAD, PLATFORM, UNIT } from './art';
 
 const R = (cells: number): Fx => fx(cells);
 /** Projectile speed authored in cells-per-second. */
@@ -50,6 +50,22 @@ export interface TowerStats {
   auraCritPct: number;
   /** Gold generated for the owner per second. */
   income: number;
+  /** Trains melee soldiers that hold the road instead of shooting. */
+  barracks: boolean;
+  /** Squad size held at the rally post. */
+  unitCount: number;
+  unitHp: number;
+  unitDamage: number;
+  /** Ticks between a soldier's swings. */
+  unitCooldown: number;
+  unitArmor: number;
+  /** Ticks before a fallen soldier is replaced. */
+  unitRespawn: number;
+  /** Health regenerated per second while out of combat. */
+  unitRegen: number;
+  unitSpeed: Fx;
+  unitArt: number;
+  unitScale: Fx;
 }
 
 const BASE: TowerStats = {
@@ -94,7 +110,21 @@ const BASE: TowerStats = {
   auraRatePct: 0,
   auraCritPct: 0,
   income: 0,
+  barracks: false,
+  unitCount: 0,
+  unitHp: 0,
+  unitDamage: 0,
+  unitCooldown: sec(1),
+  unitArmor: 0,
+  unitRespawn: sec(6),
+  unitRegen: 0,
+  unitSpeed: Math.floor(fx(2.4) / TICK_RATE),
+  unitArt: UNIT.soldierGreen,
+  unitScale: fx(0.78),
 };
+
+/** A neutral stat block for payloads that are not owned by a tower. */
+export const BASE_STATS: TowerStats = BASE;
 
 export interface TowerBranch {
   key: string;
@@ -105,6 +135,8 @@ export interface TowerBranch {
   damagePct: number;
   rangePct: number;
   ratePct: number;
+  /** Barracks only: percentage bonus to soldier health. */
+  unitHpPct?: number;
   stats: Partial<TowerStats>;
 }
 
@@ -134,6 +166,8 @@ export const TOWER = {
   Hunter: 5,
   Brazier: 6,
   Altar: 7,
+  Barracks: 8,
+  Kennel: 9,
 } as const;
 
 function stats(over: Partial<TowerStats>): TowerStats {
@@ -418,6 +452,101 @@ export const TOWERS: readonly TowerDef[] = [
       },
     ],
   },
+  {
+    id: TOWER.Barracks,
+    key: 'barracks',
+    name: 'Barracks',
+    role: 'Blocker',
+    desc: 'A hut, not a turret: it posts a squad on the road that stops ground troops dead.',
+    cost: 105,
+    upgradeCosts: [80, 140, 225, 350],
+    growth: { damagePct: 34, rangePct: 8, ratePct: 0 },
+    head: PLATFORM.emptyPlot,
+    headScale: 0.72,
+    accent: '#ffd08a',
+    base: stats({
+      damage: 0, cooldown: sec(1), range: R(3.4),
+      projSpeed: 0, targetsAir: false,
+      barracks: true,
+      unitCount: 3, unitHp: 190, unitDamage: 13,
+      unitCooldown: sec(0.85), unitArmor: 1,
+      unitRespawn: sec(7), unitRegen: 16,
+      unitSpeed: cps(2.6), unitArt: UNIT.soldierGreen, unitScale: fx(0.8),
+    }),
+    branches: [
+      {
+        key: 'shieldwall', name: 'Shield Wall',
+        desc: 'Heavily armoured guards whose shield bash staggers what it blocks.',
+        head: PLATFORM.emptyPlotAlt, headScale: 0.78,
+        damagePct: -10, rangePct: 0, ratePct: 0,
+        unitHpPct: 130,
+        stats: {
+          unitArmor: 8, unitRegen: 26, unitCooldown: sec(1.0),
+          unitArt: UNIT.soldierBlue, unitScale: fx(0.88),
+          slowPct: 30, slowT: sec(1.0),
+        },
+      },
+      {
+        key: 'blades', name: 'Blade Company',
+        desc: 'Duellists that cut fast and leave every wound bleeding.',
+        head: PLATFORM.targetPlot, headScale: 0.78,
+        damagePct: 55, rangePct: 10, ratePct: 0,
+        unitHpPct: 25,
+        stats: {
+          unitCount: 4, unitCooldown: sec(0.45),
+          unitArt: UNIT.soldierOrange,
+          poisonDps: 16, poisonT: sec(3),
+        },
+      },
+    ],
+  },
+  {
+    id: TOWER.Kennel,
+    key: 'kennel',
+    name: 'Hound Kennel',
+    role: 'Harass',
+    desc: 'Cheap hut that looses fast hounds. They die easily but come straight back.',
+    cost: 80,
+    upgradeCosts: [65, 115, 185, 290],
+    growth: { damagePct: 36, rangePct: 10, ratePct: 0 },
+    head: PLATFORM.emptyPlot,
+    headScale: 0.66,
+    accent: '#b7f07a',
+    base: stats({
+      damage: 0, cooldown: sec(1), range: R(4.2),
+      projSpeed: 0, targetsAir: false,
+      barracks: true,
+      unitCount: 3, unitHp: 105, unitDamage: 10,
+      unitCooldown: sec(0.4), unitArmor: 0,
+      unitRespawn: sec(4), unitRegen: 22,
+      unitSpeed: cps(4.2), unitArt: UNIT.soldierGrey, unitScale: fx(0.66),
+    }),
+    branches: [
+      {
+        key: 'direpack', name: 'Dire Pack',
+        desc: 'Bigger beasts, one extra hound, and jaws that shred armour.',
+        head: PLATFORM.emptyPlotAlt, headScale: 0.72,
+        damagePct: 45, rangePct: 5, ratePct: 0,
+        unitHpPct: 110,
+        stats: {
+          unitCount: 4, unitScale: fx(0.82),
+          armorShred: 3, unitArt: UNIT.soldierGrey,
+        },
+      },
+      {
+        key: 'plaguehounds', name: 'Plague Hounds',
+        desc: 'Every bite injects blight that keeps eating away long after.',
+        head: PLATFORM.targetPlot, headScale: 0.72,
+        damagePct: 0, rangePct: 15, ratePct: 0,
+        unitHpPct: 45,
+        stats: {
+          unitRespawn: sec(3),
+          unitArt: UNIT.soldierGreen,
+          poisonDps: 26, poisonT: sec(4),
+        },
+      },
+    ],
+  },
 ];
 
 /** Per-level aura growth for support towers (percent of the base aura). */
@@ -448,6 +577,8 @@ export function computeTowerStats(defId: number, branch: number, level: number):
     s.auraRangePct = Math.floor((s.auraRangePct * (100 + AURA_GROWTH)) / 100);
     s.auraCritPct = Math.floor((s.auraCritPct * (100 + AURA_GROWTH)) / 100);
     s.income = Math.floor((s.income * (100 + AURA_GROWTH)) / 100);
+    s.unitHp = Math.floor((s.unitHp * (100 + d.growth.damagePct)) / 100);
+    s.unitDamage = Math.floor((s.unitDamage * (100 + d.growth.damagePct)) / 100);
   };
 
   // Levels 1-3 are plain growth on the base tower.
@@ -462,6 +593,8 @@ export function computeTowerStats(defId: number, branch: number, level: number):
     s.cooldown = Math.max(1, Math.floor((s.cooldown * 100) / (100 + b.ratePct)));
     s.burnDps = Math.floor((s.burnDps * (100 + b.damagePct)) / 100);
     s.poisonDps = Math.floor((s.poisonDps * (100 + b.damagePct)) / 100);
+    s.unitDamage = Math.floor((s.unitDamage * (100 + b.damagePct)) / 100);
+    s.unitHp = Math.floor((s.unitHp * (100 + (b.unitHpPct ?? 0))) / 100);
     for (let i = 3; i < level; i++) applyLevel();
   }
 

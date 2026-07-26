@@ -19,7 +19,7 @@ import { chance, nextInt, type RngHolder } from '../core/rng';
 import { buildMapRuntime, isBuildable, type MapRuntime } from '../content/maps';
 import { enemyDef, ENEMY, EnemyAbility } from '../content/enemies';
 import {
-  computeTowerStats, MAX_TOWER_LEVEL, TOWER, towerDef, upgradeCost,
+  BASE_STATS, computeTowerStats, MAX_TOWER_LEVEL, TOWER, TOWERS, towerDef, upgradeCost,
   type TowerStats,
 } from '../content/towers';
 import { AbilityKind, heroDef, heroLevelForXp, MAX_HERO_LEVEL } from '../content/heroes';
@@ -35,13 +35,26 @@ import {
 import {
   DmgType, EventKind, GroundKind, Phase, ProjKind, sec, TargetMode, TICK_RATE,
   type Enemy, type GameState, type GroundEffect, type PlayerState,
-  type Projectile, type SimOutput, type Tower,
+  type Projectile, type SimOutput, type Soldier, type Tower,
 } from './types';
 
 const HIT_RADIUS: Fx = fx(0.34);
 const GROUND_TICK = Math.floor(TICK_RATE / 4); // ground effects damage 4x/second
 const CONTACT_RANGE: Fx = fx(0.62);
 const CORE_REACH: Fx = fx(0.5);
+/** How close a soldier has to be to stop an enemy walking past. */
+const BLOCK_RANGE: Fx = fx(0.6);
+/** Melee reach of a soldier's swing. */
+const MELEE_RANGE: Fx = fx(0.5);
+/** A squad never chases further than this from its rally post. */
+const LEASH: Fx = fx(1.7);
+/** Where each squad member stands relative to the rally post. */
+const SQUAD_OFFSETS: readonly Vec2[] = [
+  { x: -fx(0.3), y: fx(0.18) },
+  { x: fx(0.3), y: fx(0.18) },
+  { x: 0, y: -fx(0.3) },
+  { x: 0, y: fx(0.45) },
+];
 
 interface Ctx {
   s: GameState;
@@ -95,9 +108,10 @@ export function step(s: GameState, commands: readonly Command[], out: SimOutput)
   updatePhase(ctx);
   spawnQueued(ctx);
   updateEnemyStatus(ctx);
+  computeAuras(ctx);
+  updateSoldiers(ctx);
   moveEnemies(ctx);
   enemyAbilities(ctx);
-  computeAuras(ctx);
   updateTowers(ctx);
   updateHeroes(ctx);
   updateProjectiles(ctx);
@@ -121,6 +135,7 @@ function applyCommand(ctx: Ctx, c: Command): void {
     case CmdType.ChooseBranch: return cmdBranch(ctx, p, c.a, c.b);
     case CmdType.Sell: return cmdSell(ctx, p, c.a);
     case CmdType.SetTargetMode: return cmdTargetMode(ctx, p, c.a, c.b);
+    case CmdType.SetRally: return cmdSetRally(ctx, p, c.a, c.b, c.c);
     case CmdType.MoveHero: return cmdMoveHero(p, c.a, c.b);
     case CmdType.UseAbility: return cmdAbility(ctx, p, c.a, c.b);
     case CmdType.UseItem: return cmdUseItem(ctx, p, c.a, c.b, c.c);
@@ -151,7 +166,7 @@ function cellOccupied(s: GameState, cx: number, cy: number): boolean {
 function cmdBuild(ctx: Ctx, p: PlayerState, defId: number, cx: number, cy: number): void {
   const s = ctx.s;
   const d = towerDef(defId);
-  if (defId < 0 || defId >= 8) return;
+  if (defId < 0 || defId >= TOWERS.length) return;
   if (!isBuildable(ctx.rt, cx, cy) || cellOccupied(s, cx, cy)) {
     deny(ctx, p, cellCenterFx(cx), cellCenterFx(cy));
     return;
@@ -162,6 +177,9 @@ function cmdBuild(ctx: Ctx, p: PlayerState, defId: number, cx: number, cy: numbe
   }
   p.gold -= d.cost;
   p.towersBuilt++;
+  const x = cellCenterFx(cx);
+  const y = cellCenterFx(cy);
+  const rally = nearestLaneSpot(ctx.rt, x, y);
   const t: Tower = {
     id: nextId(s),
     owner: p.idx,
@@ -169,9 +187,10 @@ function cmdBuild(ctx: Ctx, p: PlayerState, defId: number, cx: number, cy: numbe
     branch: 0,
     level: 1,
     cx, cy,
-    x: cellCenterFx(cx),
-    y: cellCenterFx(cy),
+    x,
+    y,
     dx: 0, dy: fx(-1),
+    rx: rally.x, ry: rally.y,
     cd: 0,
     targetMode: TargetMode.First,
     targetId: 0,
@@ -245,6 +264,21 @@ function cmdTargetMode(ctx: Ctx, p: PlayerState, towerId: number, mode: number):
   if (!t || t.owner !== p.idx) return;
   if (mode < 0 || mode > 3) return;
   t.targetMode = mode;
+}
+
+/** Move a barracks squad to another spot on the road, within the hut's range. */
+function cmdSetRally(ctx: Ctx, p: PlayerState, towerId: number, x: Fx, y: Fx): void {
+  const t = findTower(ctx.s, towerId);
+  if (!t || t.owner !== p.idx) return;
+  const st = cachedStats(t.defId, t.branch, t.level);
+  if (!st.barracks) return;
+  const spot = nearestLaneSpot(ctx.rt, x, y);
+  if (fxDist2(spot.x, spot.y, t.x, t.y) > fxMul(st.range, st.range)) {
+    deny(ctx, p, spot.x, spot.y);
+    return;
+  }
+  t.rx = spot.x;
+  t.ry = spot.y;
 }
 
 function cmdMoveHero(p: PlayerState, x: Fx, y: Fx): void {
@@ -403,6 +437,7 @@ function cellCenterFx(c: number): Fx {
 function savePrevious(s: GameState): void {
   for (const e of s.enemies) { e.px = e.x; e.py = e.y; }
   for (const p of s.projectiles) { p.px = p.x; p.py = p.y; }
+  for (const sd of s.soldiers) { sd.px = sd.x; sd.py = sd.y; }
   for (const pl of s.players) { pl.hero.px = pl.hero.x; pl.hero.py = pl.hero.y; }
 }
 
@@ -529,6 +564,7 @@ function spawnEnemy(
     plagueDps: 0,
     speedBonus: mod === WaveMod.Hasted ? 30 : 0,
     markT: 0, markPct: 0,
+    blockedBy: 0,
     abilityCd: d.abilityCd,
     spawnT: sec(0.4),
     bounty: d.bounty,
@@ -616,6 +652,8 @@ function moveEnemies(ctx: Ctx): void {
     if (e.dead) continue;
     const speed = effectiveSpeed(ctx, e);
     if (speed <= 0) continue;
+    // Held up by a barracks squad: it has to fight its way through first.
+    if (e.blockedBy !== 0) continue;
 
     if (e.flying) {
       const len = fxNormalize(rt.coreX - e.x, rt.coreY - e.y, tmpVec);
@@ -994,6 +1032,11 @@ function updateTowers(ctx: Ctx): void {
       continue;
     }
 
+    if (st.barracks) {
+      maintainSquad(ctx, t, st);
+      continue;
+    }
+
     if (t.cd > 0) {
       // Inferno's ramp decays whenever it is not shooting.
       if (st.ramp > 0 && t.charge > 0 && s.tick % 6 === 0) t.charge = Math.max(0, t.charge - 1);
@@ -1248,6 +1291,196 @@ function applyPayload(ctx: Ctx, e: Enemy, st: TowerStats, owner: number, damage:
   }
 }
 
+// ============================================================== barracks
+
+/**
+ * Closest point on any lane to (x, y), sampled at a fixed step so both peers
+ * pick the same spot. Lanes are axis-aligned, which keeps the maths exact.
+ */
+function nearestLaneSpot(rt: MapRuntime, x: Fx, y: Fx): Vec2 {
+  const step = fx(0.5);
+  let bestX = rt.coreX;
+  let bestY = rt.coreY;
+  let best = -1;
+  for (const lane of rt.lanes) {
+    for (let i = 1; i < lane.pts.length; i++) {
+      const a = lane.pts[i - 1];
+      const b = lane.pts[i];
+      const len = Math.abs(b.x - a.x) + Math.abs(b.y - a.y);
+      const steps = Math.max(1, Math.floor(len / step));
+      for (let k = 0; k <= steps; k++) {
+        const px = a.x + Math.floor(((b.x - a.x) * k) / steps);
+        const py = a.y + Math.floor(((b.y - a.y) * k) / steps);
+        const d2 = fxDist2(px, py, x, y);
+        if (best < 0 || d2 < best) {
+          best = d2;
+          bestX = px;
+          bestY = py;
+        }
+      }
+    }
+  }
+  return { x: bestX, y: bestY };
+}
+
+function squadSize(s: GameState, towerId: number): number {
+  let n = 0;
+  for (const sd of s.soldiers) {
+    if (sd.towerId === towerId && sd.hp > 0) n++;
+  }
+  return n;
+}
+
+/** Keeps a hut's squad topped up; `t.cd` is the training timer. */
+function maintainSquad(ctx: Ctx, t: Tower, st: TowerStats): void {
+  const s = ctx.s;
+  if (t.cd > 0) return;
+  const alive = squadSize(s, t.id);
+  if (alive >= st.unitCount) return;
+
+  // Pick the lowest free formation slot so the line always fills front first.
+  const taken: boolean[] = [];
+  for (const sd of s.soldiers) {
+    if (sd.towerId === t.id && sd.hp > 0) taken[sd.slot] = true;
+  }
+  let slot = 0;
+  while (taken[slot]) slot++;
+
+  const off = SQUAD_OFFSETS[slot % SQUAD_OFFSETS.length];
+  const x = t.rx + off.x;
+  const y = t.ry + off.y;
+  const sd: Soldier = {
+    id: nextId(s),
+    towerId: t.id,
+    owner: t.owner,
+    slot,
+    x, y, px: x, py: y,
+    dx: 0, dy: fx(-1),
+    hp: Math.max(1, st.unitHp),
+    maxHp: Math.max(1, st.unitHp),
+    attackCd: 0,
+    targetId: 0,
+    regenAcc: 0,
+    spawnT: sec(0.3),
+    anim: 0,
+  };
+  s.soldiers.push(sd);
+  // Between waves the hut refills almost instantly, so every fight starts
+  // with a full line.
+  t.cd = s.phase === Phase.Build ? sec(0.4) : Math.max(1, st.unitRespawn);
+  emit(ctx, EventKind.SoldierSpawn, x, y, t.defId, slot, t.owner);
+}
+
+function updateSoldiers(ctx: Ctx): void {
+  const s = ctx.s;
+  // Blocking is recomputed from scratch every tick.
+  for (const e of s.enemies) e.blockedBy = 0;
+  if (s.soldiers.length === 0) return;
+
+  for (let i = 0; i < s.towers.length; i++) {
+    const t = s.towers[i];
+    if (!cachedStats(t.defId, t.branch, t.level).barracks) continue;
+    const st = effStats(ctx, t, i);
+    for (const sd of s.soldiers) {
+      if (sd.towerId !== t.id || sd.hp <= 0) continue;
+      updateSoldier(ctx, t, st, sd);
+    }
+  }
+}
+
+function soldierTarget(ctx: Ctx, t: Tower, sd: Soldier): Enemy | null {
+  const leash2 = fxMul(LEASH, LEASH);
+  let best: Enemy | null = null;
+  let bestD2 = 0;
+  for (const e of ctx.s.enemies) {
+    if (e.dead || e.flying || e.spawnT > 0) continue;
+    if (fxDist2(e.x, e.y, t.rx, t.ry) > leash2) continue;
+    const d2 = fxDist2(e.x, e.y, sd.x, sd.y);
+    if (best === null || d2 < bestD2 || (d2 === bestD2 && e.id < best.id)) {
+      best = e;
+      bestD2 = d2;
+    }
+  }
+  return best;
+}
+
+function updateSoldier(ctx: Ctx, t: Tower, st: TowerStats, sd: Soldier): void {
+  const s = ctx.s;
+  sd.anim++;
+  if (sd.spawnT > 0) sd.spawnT--;
+  sd.maxHp = Math.max(1, st.unitHp);
+  if (sd.hp > sd.maxHp) sd.hp = sd.maxHp;
+  if (sd.attackCd > 0) sd.attackCd--;
+
+  const off = SQUAD_OFFSETS[sd.slot % SQUAD_OFFSETS.length];
+  const postX = t.rx + off.x;
+  const postY = t.ry + off.y;
+  const speed = Math.max(1, st.unitSpeed);
+
+  const target = soldierTarget(ctx, t, sd);
+  sd.targetId = target ? target.id : 0;
+
+  if (target) {
+    const len = fxNormalize(target.x - sd.x, target.y - sd.y, tmpVec);
+    if (len > 0) {
+      sd.dx = tmpVec.x;
+      sd.dy = tmpVec.y;
+    }
+    if (len > MELEE_RANGE) {
+      const stepLen = Math.min(speed, len - MELEE_RANGE);
+      sd.x += fxMul(tmpVec.x, stepLen);
+      sd.y += fxMul(tmpVec.y, stepLen);
+    }
+    if (fxDist2(target.x, target.y, sd.x, sd.y) <= fxMul(BLOCK_RANGE, BLOCK_RANGE)) {
+      if (target.blockedBy === 0) target.blockedBy = sd.id;
+      if (sd.attackCd <= 0 && sd.spawnT <= 0) {
+        sd.attackCd = Math.max(1, st.unitCooldown);
+        applyPayload(ctx, target, st, t.owner, Math.max(1, st.unitDamage));
+        emit(ctx, EventKind.Shot, sd.x, sd.y, -2, ProjKind.Slug, t.owner, target.x, target.y);
+      }
+    }
+  } else if (sd.x !== postX || sd.y !== postY) {
+    const len = fxNormalize(postX - sd.x, postY - sd.y, tmpVec);
+    if (len <= speed) {
+      sd.x = postX;
+      sd.y = postY;
+    } else {
+      sd.dx = tmpVec.x;
+      sd.dy = tmpVec.y;
+      sd.x += fxMul(tmpVec.x, speed);
+      sd.y += fxMul(tmpVec.y, speed);
+    }
+  }
+
+  // Whatever is standing on the soldier hits back, five times a second.
+  const contact2 = fxMul(CONTACT_RANGE, CONTACT_RANGE);
+  let inCombat = false;
+  for (const e of s.enemies) {
+    if (e.dead || e.flying || e.spawnT > 0 || e.stunT > 0) continue;
+    if (fxDist2(e.x, e.y, sd.x, sd.y) > contact2) continue;
+    inCombat = true;
+    if (s.tick % 6 !== 0) continue;
+    const dps = Math.min(220, Math.max(6, Math.floor(e.maxHp / 7)));
+    sd.hp -= Math.max(1, Math.floor(dps / 5) - st.unitArmor);
+  }
+
+  if (!inCombat && st.unitRegen > 0 && sd.hp < sd.maxHp) {
+    sd.regenAcc += st.unitRegen;
+    const heal = Math.floor(sd.regenAcc / TICK_RATE);
+    if (heal > 0) {
+      sd.regenAcc -= heal * TICK_RATE;
+      sd.hp = Math.min(sd.maxHp, sd.hp + heal);
+    }
+  }
+
+  if (sd.hp <= 0) {
+    sd.hp = 0;
+    emit(ctx, EventKind.SoldierDeath, sd.x, sd.y, t.defId, 0, t.owner);
+    // A fallen soldier is not replaced instantly.
+    if (t.cd <= 0) t.cd = Math.max(1, st.unitRespawn);
+  }
+}
+
 // ============================================================== projectiles
 
 function updateProjectiles(ctx: Ctx): void {
@@ -1305,21 +1538,15 @@ function updateProjectiles(ctx: Ctx): void {
 /** A projectile carries its own copy of the payload it was fired with. */
 function projectileStats(p: Projectile): TowerStats {
   return {
+    ...BASE_STATS,
     damage: p.damage,
     cooldown: 1,
     range: 0,
     splash: p.splash,
     dmgType: p.dmgType,
-    targetsAir: true,
-    targetsGround: true,
     projSpeed: p.speed,
     projKind: p.kind,
     arcing: p.arcing,
-    pierce: 0,
-    multiShot: 1,
-    chains: 0,
-    chainRange: 0,
-    chainFalloff: 0,
     slowPct: p.slowPct,
     slowT: p.slowT,
     burnDps: p.burnDps,
@@ -1327,25 +1554,11 @@ function projectileStats(p: Projectile): TowerStats {
     poisonDps: p.poisonDps,
     poisonT: p.poisonT,
     stunT: p.stunT,
-    critPct: 0,
-    critMult: 200,
-    executePct: 0,
     armorShred: p.armorShred,
-    markPct: 0,
-    markT: 0,
-    shieldBreak: 0,
     groundKind: p.groundKind,
     groundRadius: p.groundRadius,
     groundLife: p.groundLife,
     groundDps: Math.max(1, Math.floor(p.damage / 6)),
-    pulse: false,
-    ramp: 0,
-    isSupport: false,
-    auraDamagePct: 0,
-    auraRangePct: 0,
-    auraRatePct: 0,
-    auraCritPct: 0,
-    income: 0,
   };
 }
 
@@ -1408,6 +1621,7 @@ function spawnSentry(ctx: Ctx, owner: number, x: Fx, y: Fx, duration: number): v
     x: cellCenterFx(cx),
     y: cellCenterFx(cy),
     dx: 0, dy: fx(-1),
+    rx: 0, ry: 0,
     cd: 0,
     targetMode: TargetMode.First,
     targetId: 0,
@@ -1588,47 +1802,17 @@ function updateHeroes(ctx: Ctx): void {
 
 function heroAttackStats(d: ReturnType<typeof heroDef>, damage: number): TowerStats {
   return {
+    ...BASE_STATS,
     damage,
     cooldown: d.attackCd,
     range: d.range,
     splash: d.splash,
     dmgType: d.dmgType,
-    targetsAir: true,
-    targetsGround: true,
     projSpeed: d.projSpeed,
     projKind: d.projKind,
-    arcing: false,
-    pierce: 0,
-    multiShot: 1,
-    chains: 0,
-    chainRange: 0,
-    chainFalloff: 0,
-    slowPct: 0,
-    slowT: 0,
     burnDps: d.burnDps,
     burnT: d.burnT,
-    poisonDps: 0,
-    poisonT: 0,
-    stunT: 0,
-    critPct: 0,
     critMult: d.critMult,
-    executePct: 0,
-    armorShred: 0,
-    markPct: 0,
-    markT: 0,
-    shieldBreak: 0,
-    groundKind: GroundKind.None,
-    groundRadius: 0,
-    groundLife: 0,
-    groundDps: 0,
-    pulse: false,
-    ramp: 0,
-    isSupport: false,
-    auraDamagePct: 0,
-    auraRangePct: 0,
-    auraRatePct: 0,
-    auraCritPct: 0,
-    income: 0,
   };
 }
 
@@ -1668,6 +1852,10 @@ function reap(ctx: Ctx): void {
   if (s.grounds.some((g) => g.life <= 0)) s.grounds = s.grounds.filter((g) => g.life > 0);
   if (s.towers.some((t) => t.temp === 0 && t.invested === 0)) {
     s.towers = s.towers.filter((t) => !(t.temp === 0 && t.invested === 0));
+  }
+  // Soldiers die with their hut.
+  if (s.soldiers.some((sd) => sd.hp <= 0 || !findTower(s, sd.towerId))) {
+    s.soldiers = s.soldiers.filter((sd) => sd.hp > 0 && findTower(s, sd.towerId) !== null);
   }
 }
 

@@ -30,6 +30,7 @@ export const CmdType = {
   BuyShop: 9,
   ToggleReady: 10,
   Emote: 11,
+  SetRally: 12,
 } as const;
 
 export function cmd(t: number, p: number, a = 0, b = 0, c = 0, d = 0): Command {
@@ -50,6 +51,9 @@ export const sell = (p: number, towerId: number): Command =>
 
 export const setTargetMode = (p: number, towerId: number, mode: number): Command =>
   cmd(CmdType.SetTargetMode, p, towerId, mode);
+
+export const setRally = (p: number, towerId: number, x: Fx, y: Fx): Command =>
+  cmd(CmdType.SetRally, p, towerId, x, y);
 
 export const moveHero = (p: number, x: Fx, y: Fx): Command =>
   cmd(CmdType.MoveHero, p, x, y);

@@ -97,6 +97,7 @@ export function createState(cfg: MatchConfig): GameState {
     players,
     enemies: [],
     towers: [],
+    soldiers: [],
     projectiles: [],
     grounds: [],
     spawns: [],
@@ -228,6 +229,17 @@ export function hashState(s: GameState): number {
     h = mix(h, t.targetMode);
     h = mix(h, t.charge);
     h = mix(h, t.temp);
+    h = mix(h, t.rx);
+    h = mix(h, t.ry);
+  }
+
+  for (const sd of s.soldiers) {
+    h = mix(h, sd.id);
+    h = mix(h, sd.x);
+    h = mix(h, sd.y);
+    h = mix(h, sd.hp);
+    h = mix(h, sd.targetId);
+    h = mix(h, sd.attackCd);
   }
 
   for (const e of s.enemies) {
@@ -237,6 +249,7 @@ export function hashState(s: GameState): number {
     h = mix(h, e.hp);
     h = mix(h, e.shield);
     h = mix(h, e.wp);
+    h = mix(h, e.blockedBy);
     h = mix(h, e.slowT * 128 + e.slowPct);
     h = mix(h, e.stunT);
     h = mix(h, e.burnT);

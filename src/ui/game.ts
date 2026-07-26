@@ -16,7 +16,7 @@ import { getMap } from '../content/maps';
 import { hashState } from '../sim/state';
 import type { Lockstep } from '../net/lockstep';
 import {
-  buyShop, chooseBranch, moveHero, sell, setTargetMode, toggleReady,
+  buyShop, chooseBranch, moveHero, sell, setRally, setTargetMode, toggleReady,
   upgrade as upgradeCmd, useAbility, useItem, build as buildCmd,
 } from '../sim/commands';
 import {
@@ -58,8 +58,9 @@ export class GameScreen {
   // --- interaction state
   private placingDefId = -1;
   private selectedTowerId = 0;
-  private aimingKind: 'none' | 'ability' | 'item' = 'none';
+  private aimingKind: 'none' | 'ability' | 'item' | 'rally' = 'none';
   private aimingSlot = -1;
+  private aimingTowerId = 0;
   private aim: { x: number; y: number; radius: number } | null = null;
   private placeCell: { x: number; y: number } | null = null;
   private pointerStart: { x: number; y: number; t: number } | null = null;
@@ -287,11 +288,16 @@ export class GameScreen {
     if (this.aimingKind !== 'none') {
       const kind = this.aimingKind;
       const slot = this.aimingSlot;
+      const towerId = this.aimingTowerId;
       this.aimingKind = 'none';
       this.aimingSlot = -1;
+      this.aimingTowerId = 0;
       this.aim = null;
       if (kind === 'ability') {
         this.ls.queue(useAbility(this.opts.localPlayer, world.x, world.y));
+      } else if (kind === 'rally') {
+        this.ls.queue(setRally(this.opts.localPlayer, towerId, world.x, world.y));
+        this.lastInspectKey = '';
       } else {
         this.ls.queue(useItem(this.opts.localPlayer, slot, world.x, world.y));
       }
@@ -631,6 +637,15 @@ export class GameScreen {
     this.refreshItems();
   }
 
+  /** Arm the "move my squad" tap for a barracks-style tower. */
+  private armRally(t: Tower): void {
+    this.placingDefId = -1;
+    this.aimingKind = 'rally';
+    this.aimingTowerId = t.id;
+    this.aim = { x: t.rx, y: t.ry, radius: FX_ONE };
+    this.flashWarning('Drag onto the road, release to post the squad there.');
+  }
+
   private refreshItems(): void {
     clear(this.hud.itemsWrap);
     this.me.items.forEach((inv, i) => {
@@ -703,16 +718,37 @@ export class GameScreen {
       ? 0
       : Math.round((nextStats.damage * Math.max(1, nextStats.multiShot) * TICK_RATE) / nextStats.cooldown);
 
-    this.hud.inspector.appendChild(
-      el(
-        'div',
-        { class: 'stat-grid' },
-        statBox('DPS', stats.isSupport ? '—' : formatNumber(dps), !maxed && nextDps > dps),
-        statBox('Damage', stats.isSupport ? '—' : String(stats.damage), !maxed && nextStats.damage > stats.damage),
-        statBox('Range', fxToFloat(stats.range).toFixed(1), !maxed && nextStats.range > stats.range),
-        statBox('Rate', stats.isSupport ? '—' : `${(TICK_RATE / stats.cooldown).toFixed(1)}/s`, !maxed && nextStats.cooldown < stats.cooldown),
-      ),
-    );
+    if (stats.barracks) {
+      const squadDps = Math.round((stats.unitDamage * stats.unitCount * TICK_RATE) / stats.unitCooldown);
+      const nextSquadDps = Math.round(
+        (nextStats.unitDamage * nextStats.unitCount * TICK_RATE) / nextStats.unitCooldown,
+      );
+      this.hud.inspector.appendChild(
+        el(
+          'div',
+          { class: 'stat-grid' },
+          statBox('Squad DPS', formatNumber(squadDps), !maxed && nextSquadDps > squadDps),
+          statBox('Soldiers', String(stats.unitCount), !maxed && nextStats.unitCount > stats.unitCount),
+          statBox('Unit HP', formatNumber(stats.unitHp), !maxed && nextStats.unitHp > stats.unitHp),
+          statBox('Respawn', `${(stats.unitRespawn / TICK_RATE).toFixed(1)}s`, false),
+        ),
+      );
+      this.hud.inspector.appendChild(
+        el('div', { class: 'muted', style: 'margin-bottom:8px' },
+          'Soldiers hold ground enemies in place at their rally post. They cannot touch flyers.'),
+      );
+    } else {
+      this.hud.inspector.appendChild(
+        el(
+          'div',
+          { class: 'stat-grid' },
+          statBox('DPS', stats.isSupport ? '—' : formatNumber(dps), !maxed && nextDps > dps),
+          statBox('Damage', stats.isSupport ? '—' : String(stats.damage), !maxed && nextStats.damage > stats.damage),
+          statBox('Range', fxToFloat(stats.range).toFixed(1), !maxed && nextStats.range > stats.range),
+          statBox('Rate', stats.isSupport ? '—' : `${(TICK_RATE / stats.cooldown).toFixed(1)}/s`, !maxed && nextStats.cooldown < stats.cooldown),
+        ),
+      );
+    }
 
     if (stats.isSupport) {
       this.hud.inspector.appendChild(
@@ -752,12 +788,13 @@ export class GameScreen {
     }
     if (mine) {
       buttons.push(
-        tapButton('btn ghost', () => {
-          this.ls.queue(setTargetMode(this.opts.localPlayer, t.id, (t.targetMode + 1) % 4));
-          this.lastInspectKey = '';
-        }, `🎯 ${TARGET_MODE_NAMES[t.targetMode]}`),
-      );
-      buttons.push(
+        stats.barracks
+          ? tapButton('btn ghost', () => this.armRally(t), '🚩 Rally')
+          : tapButton('btn ghost', () => {
+            this.ls.queue(setTargetMode(this.opts.localPlayer, t.id, (t.targetMode + 1) % 4));
+            this.lastInspectKey = '';
+          }, `🎯 ${TARGET_MODE_NAMES[t.targetMode]}`),
+      );      buttons.push(
         tapButton('btn danger', () => {
           this.ls.queue(sell(this.opts.localPlayer, t.id));
           this.selectedTowerId = 0;
@@ -974,6 +1011,12 @@ export class GameScreen {
         case EventKind.Shot: {
           const x2 = this.renderer.toCanvasX(ev.x2);
           const y2 = this.renderer.toCanvasY(ev.y2);
+          if (ev.a === -2) {
+            // A barracks soldier swinging - a scuffle, not a gunshot.
+            fx.beam(x, y, x2, y2, '#ffe9a8', 1.5, 60, 2);
+            audio.vary('hit', 1.15, 0.2, { volume: 0.16, pan }, 45);
+            break;
+          }
           fx.burst(x, y, 2, '#ffe9a8', cell * 0.05, cell * 0.09);
           this.shotSound(ev.b, pan);
           if (ev.b === ProjKind.Shard) fx.ring(x, y, cell * 2.2, '#7ee8ff', 3, 320);
@@ -1022,6 +1065,13 @@ export class GameScreen {
           vibrate([30, 40, 30]);
           break;
         }
+        case EventKind.SoldierSpawn:
+          fx.ring(x, y, cell * 0.7, PLAYER_COLORS[ev.owner] ?? '#fff', 2, 300);
+          break;
+        case EventKind.SoldierDeath:
+          fx.burst(x, y, 6, '#ffd0a0', cell * 0.06, cell * 0.1);
+          audio.vary('thud', 1.2, 0.15, { volume: 0.28, pan }, 60);
+          break;
         case EventKind.TowerBuilt:
           fx.ring(x, y, cell * 1.2, '#8effc0', 3, 380);
           audio.play('build', { volume: 0.7, pan });

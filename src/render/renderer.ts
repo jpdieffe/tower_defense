@@ -153,6 +153,7 @@ export class Renderer {
     this.drawCore(state);
     this.drawTowers(state, view);
     this.drawEnemies(state, alpha);
+    this.drawSoldiers(state, alpha);
     this.drawHeroes(state, alpha, view);
     this.drawProjectiles(state, alpha);
     this.fx.draw(ctx);
@@ -449,6 +450,7 @@ export class Renderer {
       if (selected) {
         const stats = computeTowerStats(t.defId, t.branch, t.level);
         this.drawRange(x, y, fxToFloat(stats.range) * cell, d.accent);
+        if (stats.barracks) this.drawRallyPost(t.rx, t.ry, x, y, d.accent);
       }
 
       // Ownership ring
@@ -494,8 +496,7 @@ export class Renderer {
     }
   }
 
-  private drawLevelPips(x: number, y: number, level: number, color: string): void {
-    const ctx = this.ctx;
+  private drawLevelPips(x: number, y: number, level: number, color: string): void {    const ctx = this.ctx;
     const r = Math.max(1.5, this.cam.cell * 0.045);
     const gap = r * 2.8;
     const total = (level - 1) * gap;
@@ -510,6 +511,86 @@ export class Renderer {
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /** Flag on the road showing where a barracks squad is holding the line. */
+  private drawRallyPost(rx: number, ry: number, tx: number, ty: number, color: string): void {
+    const ctx = this.ctx;
+    const cell = this.cam.cell;
+    const x = this.px(rx);
+    const y = this.py(ry);
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = Math.max(1.5, this.dpr * 1.5);
+    ctx.setLineDash([cell * 0.15, cell * 0.12]);
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2, this.dpr * 2);
+    ctx.beginPath();
+    ctx.arc(x, y, cell * 0.42 + Math.sin(this.time * 0.006) * 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - cell * 0.55);
+    ctx.lineTo(x + cell * 0.34, y - cell * 0.4);
+    ctx.lineTo(x, y - cell * 0.25);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = Math.max(1, this.dpr);
+    ctx.beginPath();
+    ctx.moveTo(x, y - cell * 0.6);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawSoldiers(state: GameState, alpha: number): void {
+    if (state.soldiers.length === 0) return;
+    const ctx = this.ctx;
+    const cell = this.cam.cell;
+
+    for (const sd of state.soldiers) {
+      const t = state.towers.find((x) => x.id === sd.towerId);
+      if (!t) continue;
+      const stats = computeTowerStats(t.defId, t.branch, t.level);
+      const x = this.lerpPx(sd.px, sd.x, alpha);
+      const y = this.lerpPy(sd.py, sd.y, alpha);
+      const size = cell * fxToFloat(stats.unitScale);
+      const rot = Math.atan2(fxToFloat(sd.dy), fxToFloat(sd.dx)) + Math.PI / 2;
+      const color = PLAYER_COLORS[sd.owner % PLAYER_COLORS.length];
+
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(x, y + size * 0.14, size * 0.3, size * 0.17, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      atlas.drawTinted(ctx, stats.unitArt, x, y, size, rot, color, sd.spawnT > 0 ? 0.5 : 1);
+
+      if (sd.hp < sd.maxHp) {
+        const w = size * 0.7;
+        const h = Math.max(2, cell * 0.055);
+        const top = y - size * 0.58;
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(x - w / 2 - 1, top - 1, w + 2, h + 2);
+        ctx.fillStyle = color;
+        ctx.fillRect(x - w / 2, top, w * Math.max(0, sd.hp / Math.max(1, sd.maxHp)), h);
+        ctx.restore();
+      }
+    }
   }
 
   private drawEnemies(state: GameState, alpha: number): void {

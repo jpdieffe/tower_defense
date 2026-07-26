@@ -80,6 +80,8 @@ export const EventKind = {
   Chain: 18,
   Freeze: 19,
   BossSpawn: 20,
+  SoldierSpawn: 21,
+  SoldierDeath: 22,
 } as const;
 export type EventKind = (typeof EventKind)[keyof typeof EventKind];
 
@@ -130,6 +132,8 @@ export interface Enemy {
   speedBonus: number;
   markT: number;
   markPct: number;
+  /** Id of the barracks soldier currently holding this enemy in place. */
+  blockedBy: number;
   abilityCd: number;
   spawnT: number;
   bounty: number;
@@ -155,6 +159,8 @@ export interface Tower {
   cx: number; cy: number;
   x: Fx; y: Fx;
   dx: Fx; dy: Fx;
+  /** Barracks rally post - where the squad stands guard. */
+  rx: Fx; ry: Fx;
   cd: number;
   targetMode: number;
   targetId: number;
@@ -200,6 +206,25 @@ export interface Projectile {
   groundRadius: Fx;
   groundLife: number;
   scale: Fx;
+}
+
+/** A melee unit trained by a barracks tower. */
+export interface Soldier {
+  id: number;
+  towerId: number;
+  owner: number;
+  /** Position within the squad, used for the rally formation. */
+  slot: number;
+  x: Fx; y: Fx;
+  px: Fx; py: Fx;
+  dx: Fx; dy: Fx;
+  hp: number;
+  maxHp: number;
+  attackCd: number;
+  targetId: number;
+  regenAcc: number;
+  spawnT: number;
+  anim: number;
 }
 
 export interface GroundEffect {
@@ -289,6 +314,7 @@ export interface GameState {
   players: PlayerState[];
   enemies: Enemy[];
   towers: Tower[];
+  soldiers: Soldier[];
   projectiles: Projectile[];
   grounds: GroundEffect[];
   spawns: SpawnOrder[];
