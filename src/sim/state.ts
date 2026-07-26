@@ -51,10 +51,10 @@ function makeHero(defId: number, x: Fx, y: Fx): Hero {
 
 /**
  * Where each player's hero starts, as cell offsets from the keep. Flanking the
- * keep first, then just in front of it for a third player.
+ * keep first, then around it for the remaining players.
  */
 const HERO_SPAWN_OFFSETS: readonly (readonly [number, number])[] = [
-  [-2, -2], [2, -2], [0, -3],
+  [-2, -2], [2, -2], [0, -3], [-3, -1], [3, -1], [0, -1],
 ];
 
 export function createState(cfg: MatchConfig): GameState {
@@ -118,6 +118,25 @@ export function createState(cfg: MatchConfig): GameState {
 
   refreshShop(state, 1);
   return state;
+}
+
+/** Add a late-joining hero without disturbing the fight already in progress. */
+export function addPlayerToState(state: GameState, player: MatchPlayerConfig): PlayerState {
+  const idx = state.players.length;
+  const rt = buildMapRuntime(state.mapId);
+  const off = HERO_SPAWN_OFFSETS[idx % HERO_SPAWN_OFFSETS.length];
+  const spawnX = cellCenter(rt.def.core[0] + off[0]);
+  const spawnY = cellCenter(rt.def.core[1] + off[1]);
+  const joined: PlayerState = {
+    idx,
+    gold: 280,
+    hero: makeHero(player.heroId, spawnX, spawnY),
+    relics: [], items: [], skills: [], skillPoints: 0, ready: false,
+    kills: 0, damage: 0, goldEarned: 0, towersBuilt: 0,
+  };
+  state.players.push(joined);
+  state.overload.push(0);
+  return joined;
 }
 
 export function refreshShop(state: GameState, wave: number): void {

@@ -15,11 +15,14 @@ import { Fx } from './fx';
 import { drawHeroSprite } from './heroart';
 import { drawTowerSprite } from './towerart';
 
-export const PLAYER_COLORS = ['#4aa3ff', '#ff9a3c', '#57e08a'];
+export const PLAYER_COLORS = ['#4aa3ff', '#ff9a3c', '#57e08a', '#d06cff', '#ff5f91', '#45d7d0'];
 export const PLAYER_GLOW = [
   'rgba(74,163,255,0.55)',
   'rgba(255,154,60,0.55)',
   'rgba(87,224,138,0.55)',
+  'rgba(208,108,255,0.55)',
+  'rgba(255,95,145,0.55)',
+  'rgba(69,215,208,0.55)',
 ];
 
 const DMG_COLORS = ['#ffffff', '#ff8a3c', '#7ee8ff', '#c39cff', '#9ff05a', '#ffd447'];

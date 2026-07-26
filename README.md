@@ -1,12 +1,12 @@
 # Bulwark — peer-to-peer co-op tower defense
 
-A co-op tower defense game for **two or three players** that runs in **any modern phone
+A co-op tower defense game for **up to six players** that runs in **any modern phone
 browser** — Android Chrome, iPhone Safari, desktop, whatever. No app store, no install, no
 accounts, and no Mac needed to build it.
 
 Multiplayer is **peer to peer over WebRTC**. A free broker is used only to introduce the
-phones to each other; after that the packets go directly between them. The host relays the
-third player's packets, so each phone only maintains one peer connection.
+phones to each other; after that the packets go directly between them. The host relays guest
+packets, so each guest phone only maintains one peer connection.
 
 ---
 

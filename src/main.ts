@@ -9,8 +9,8 @@ import {
   makeRoomCode, MAX_PLAYERS, normaliseCode, PROTOCOL_VERSION, randomSeed,
   type LobbyInfo, type NetMessage, type RosterEntry, type Transport,
 } from './net/protocol';
-import { hostRoom, joinRoom, type HostTransport } from './net/peer';
-import { createState, type MatchConfig } from './sim/state';
+import { hostRoom, joinRoom } from './net/peer';
+import { addPlayerToState, cloneState, createState, type MatchConfig } from './sim/state';
 import { GameScreen } from './ui/game';
 import {
   lobbyStatusCard, renderHelp, renderHostWaiting, renderJoin, renderSetup, renderTitle,
@@ -18,7 +18,10 @@ import {
 } from './ui/menus';
 import { clear, el, toast } from './ui/dom';
 
-const PLAYER_NAMES = ['Player 1 (blue)', 'Player 2 (orange)', 'Player 3 (green)'];
+const PLAYER_NAMES = [
+  'Player 1 (blue)', 'Player 2 (orange)', 'Player 3 (green)',
+  'Player 4 (purple)', 'Player 5 (pink)', 'Player 6 (teal)',
+];
 const START_GOLD = 280;
 const HERO_COUNT = HEROES.length;
 
@@ -37,14 +40,13 @@ class App {
 
   private transport: Transport | null = null;
   private handle: { cancel(): void } | null = null;
-  /** Set only when we are the host, so the room can be closed to late joiners. */
-  private room: HostTransport | null = null;
   private isHost = false;
   private roomCode = '';
   private pingTimer = 0;
   private rttMs = 0;
   /** Round trip to each peer; the match is paced by the worst of them. */
   private peerRtt = new Map<number, number>();
+  private matchEpoch = 0;
 
   /** Our lobby slot, which is also our in-match player index. */
   private slot = 0;
@@ -178,7 +180,6 @@ class App {
       },
     });
     this.handle = room;
-    this.room = room.transport;
     this.attachTransport(room.transport);
     this.startPingLoop();
   }
@@ -201,6 +202,9 @@ class App {
         this.transport?.send({ t: 'bye', why: 'A player left the match.' });
         this.onDisconnected('A player left the match.');
       }
+      if (this.roster.length > (this.lastMatch?.cfg.players.length ?? 0)) {
+        this.admitLatePlayers();
+      }
       return;
     }
 
@@ -211,6 +215,25 @@ class App {
     }
     this.broadcastLobby(true);
     this.showLobby();
+  }
+
+  /** Re-seat the running match from one host snapshot when guests join late. */
+  private admitLatePlayers(): void {
+    if (!this.isHost || !this.currentLockstep || !this.lastMatch) return;
+    const state = cloneState(this.currentLockstep.state);
+    const cfg: MatchConfig = { ...this.lastMatch.cfg, players: [...this.lastMatch.cfg.players] };
+    while (cfg.players.length < this.roster.length) {
+      const idx = cfg.players.length;
+      const seat = this.roster[idx] ?? emptySeat(idx);
+      const player = { name: PLAYER_NAMES[idx] ?? seat.name, heroId: seat.heroId % HERO_COUNT };
+      cfg.players.push(player);
+      addPlayerToState(state, player);
+    }
+    const inputDelay = Math.max(this.lastMatch.inputDelay, inputDelayForRtt(this.rttMs));
+    this.lastMatch = { cfg, inputDelay };
+    const epoch = ++this.matchEpoch;
+    this.transport?.send({ t: 'resume', match: cfg, inputDelay, state: cloneState(state), epoch });
+    this.beginResumedMatch(state, cfg, inputDelay, epoch);
   }
 
   private doJoin(rawCode: string): void {
@@ -318,7 +341,6 @@ class App {
     this.transport?.close();
     this.handle = null;
     this.transport = null;
-    this.room = null;
     this.lastLobbySig = '';
     this.peerRtt.clear();
     this.rttMs = 0;
@@ -420,8 +442,8 @@ class App {
   }
 
   private beginNetworkedMatch(cfg: MatchConfig, inputDelay: number): void {
+    this.matchEpoch = 0;
     this.lastMatch = { cfg, inputDelay };
-    this.room?.lock();
     const local = Math.min(this.slot, cfg.players.length - 1);
     const ls = new Lockstep(createState(cfg), this.transport, {
       localPlayer: local,
@@ -430,6 +452,18 @@ class App {
       isHost: this.isHost,
     });
     this.enterGame(ls, local, true);
+  }
+
+  private beginResumedMatch(state: ReturnType<typeof createState>, cfg: MatchConfig, inputDelay: number, epoch: number): void {
+    this.matchEpoch = epoch;
+    this.lastMatch = { cfg, inputDelay };
+    this.roster = cfg.players.map((p) => ({ name: p.name, heroId: p.heroId, ready: false }));
+    const local = Math.min(this.slot, cfg.players.length - 1);
+    const ls = new Lockstep(state, this.transport, {
+      localPlayer: local, playerCount: cfg.players.length, inputDelay, isHost: this.isHost, epoch,
+    });
+    this.enterGame(ls, local, true);
+    toast(`${cfg.players.length} players defending`);
   }
 
   // ================================================================ match
@@ -448,6 +482,7 @@ class App {
       localPlayer,
       playerNames: PLAYER_NAMES,
       multiplayer,
+      roomCode: multiplayer ? this.roomCode : undefined,
       onLeave: () => {
         this.game?.destroy();
         this.game = null;
@@ -487,7 +522,7 @@ class App {
       case 'hello':
         // The host answers with the full picture; the guest's seat number was
         // already sent by the transport as `welcome`.
-        if (this.isHost) this.broadcastLobby(true);
+        if (this.isHost && !this.game) this.broadcastLobby(true);
         break;
 
       case 'welcome':
@@ -527,6 +562,10 @@ class App {
 
       case 'start':
         if (!this.isHost) this.beginNetworkedMatch(msg.match, msg.inputDelay);
+        break;
+
+      case 'resume':
+        if (!this.isHost) this.beginResumedMatch(msg.state, msg.match, msg.inputDelay, msg.epoch);
         break;
 
       case 'ping':

@@ -25,7 +25,7 @@ export function renderTitle(root: HTMLElement, h: TitleHandlers): void {
           'div',
           { class: 'title' },
           el('h1', {}, 'BULWARK'),
-          el('p', {}, 'Up to three players. One keep. The Scourge never stops.'),
+          el('p', {}, 'Up to six players. One keep. The Scourge never stops.'),
         ),
         tapButton('btn primary', h.onHost, '🤝 Host a co-op game'),
         tapButton('btn warm', h.onJoin, '🔗 Join with a code'),
@@ -171,7 +171,7 @@ export function renderHostWaiting(
           { class: 'card' },
           el('h2', {}, 'Share this code'),
           el('div', { class: 'room-code' }, code),
-          el('div', { class: 'muted' }, 'Your friends tap “Join with a code” and type this in. Up to two can join.'),
+          el('div', { class: 'muted' }, 'Friends can use this code before or during the battle. Up to five can join.'),
           el('div', { class: 'btn-row', style: 'margin-top:12px' },
             tapButton('btn ghost', async () => {
               const ok = await copyToClipboard(code);
@@ -329,7 +329,7 @@ export interface LobbyModel {
   /** Which seat is us. */
   selfSlot: number;
   seats: LobbySeat[];
-  /** Seats still open, so the host knows a third player can still be invited. */
+  /** Seats still open, so the host knows more players can still be invited. */
   freeSeats: number;
   rttMs: number;
 }

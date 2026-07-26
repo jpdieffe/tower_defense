@@ -38,6 +38,7 @@ export interface GameScreenOptions {
   localPlayer: number;
   playerNames: string[];
   multiplayer: boolean;
+  roomCode?: string;
   onLeave: () => void;
   onRestart: () => void;
 }
@@ -406,6 +407,9 @@ export class GameScreen {
         goldSelf,
       ),
       netPill,
+      this.opts.multiplayer && this.opts.roomCode
+        ? el('div', { class: 'pill room-pill', title: 'Room code' }, `ROOM ${this.opts.roomCode}`)
+        : null,
       tapButton('icon-btn', () => this.togglePause(), '⏸'),
     );
 

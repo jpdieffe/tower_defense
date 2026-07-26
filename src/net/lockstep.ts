@@ -46,6 +46,7 @@ export class Lockstep {
   readonly playerCount: number;
   readonly inputDelay: number;
   readonly isHost: boolean;
+  readonly epoch: number;
 
   /** tick -> per-player packed command lists (null = not yet received). */
   private inbox = new Map<number, (number[][] | null)[]>();
@@ -74,19 +75,21 @@ export class Lockstep {
   constructor(
     state: GameState,
     private readonly transport: Transport | null,
-    opts: { localPlayer: number; playerCount: number; inputDelay: number; isHost: boolean },
+    opts: { localPlayer: number; playerCount: number; inputDelay: number; isHost: boolean; epoch?: number },
   ) {
     this.state = state;
     this.localPlayer = opts.localPlayer;
     this.playerCount = opts.playerCount;
     this.inputDelay = Math.max(1, opts.inputDelay);
     this.isHost = opts.isHost;
+    this.epoch = opts.epoch ?? 0;
 
-    // Ticks before the first scheduled input are, by definition, empty.
-    for (let k = 0; k < this.inputDelay; k++) {
+    // The opening delay window (also used when joining a live snapshot) is,
+    // by definition, empty for every participant.
+    for (let k = this.state.tick; k < this.state.tick + this.inputDelay; k++) {
       this.inbox.set(k, new Array(this.playerCount).fill([]) as number[][][]);
     }
-    this.publishedThrough = this.inputDelay - 1;
+    this.publishedThrough = this.state.tick + this.inputDelay - 1;
   }
 
   /** Queue a local action. It will be executed `inputDelay` ticks from now. */
@@ -98,11 +101,13 @@ export class Lockstep {
   receive(msg: NetMessage): void {
     switch (msg.t) {
       case 'inp': {
+        if (msg.e !== this.epoch) break;
         if (!this.isPeer(msg.from)) break;
         this.slotFor(msg.k)[msg.from] = msg.c;
         break;
       }
       case 'hash': {
+        if (msg.e !== this.epoch) break;
         if (!this.isPeer(msg.from)) break;
         let byPlayer = this.peerHash.get(msg.k);
         if (!byPlayer) {
@@ -114,7 +119,7 @@ export class Lockstep {
         break;
       }
       case 'ping':
-        // Answer the asker directly - a broadcast would give the third player
+        // Answer the asker directly - a broadcast would give other players
         // a reply to a question they never asked.
         this.transport?.sendTo(msg.from, { t: 'pong', from: this.localPlayer, s: msg.s });
         break;
@@ -165,7 +170,7 @@ export class Lockstep {
     this.pending.length = 0;
     this.slotFor(target)[this.localPlayer] = packed;
     this.publishedThrough = Math.max(this.publishedThrough, target);
-    this.transport?.send({ t: 'inp', from: this.localPlayer, k: target, c: packed });
+    this.transport?.send({ t: 'inp', from: this.localPlayer, k: target, c: packed, e: this.epoch });
   }
 
   /**
@@ -186,7 +191,7 @@ export class Lockstep {
     const target = this.state.tick + this.inputDelay + ticks;
     for (let k = this.publishedThrough + 1; k <= target; k++) {
       this.slotFor(k)[this.localPlayer] = [];
-      this.transport.send({ t: 'inp', from: this.localPlayer, k, c: [] });
+      this.transport.send({ t: 'inp', from: this.localPlayer, k, c: [], e: this.epoch });
     }
     if (target > this.publishedThrough) this.publishedThrough = target;
   }
@@ -262,7 +267,7 @@ export class Lockstep {
     if (this.playerCount > 1 && tick % HASH_INTERVAL === 0) {
       const h = hashState(this.state);
       this.lastLocalHash.set(tick, h);
-      this.transport?.send({ t: 'hash', from: this.localPlayer, k: tick, h });
+      this.transport?.send({ t: 'hash', from: this.localPlayer, k: tick, h, e: this.epoch });
       this.compareHash(tick);
       // Keep the maps small.
       if (this.lastLocalHash.size > 64) {

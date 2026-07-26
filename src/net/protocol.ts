@@ -1,10 +1,10 @@
 import type { MatchConfig } from '../sim/state';
 import type { GameState } from '../sim/types';
 
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
-/** Host plus two guests. The star topology below is sized for exactly this. */
-export const MAX_PLAYERS = 3;
+/** Host plus five guests. */
+export const MAX_PLAYERS = 6;
 
 export interface LobbyInfo {
   name: string;
@@ -31,9 +31,11 @@ export type NetMessage =
    * client's in-match player index is simply its lobby slot.
    */
   | { t: 'start'; match: MatchConfig; inputDelay: number }
+  /** Host restarts lockstep from one live snapshot when a late player joins. */
+  | { t: 'resume'; match: MatchConfig; inputDelay: number; state: GameState; epoch: number }
   /** Commands for a future tick. Sent every tick, even when empty. */
-  | { t: 'inp'; from: number; k: number; c: number[][] }
-  | { t: 'hash'; from: number; k: number; h: number }
+  | { t: 'inp'; from: number; k: number; c: number[][]; e: number }
+  | { t: 'hash'; from: number; k: number; h: number; e: number }
   | { t: 'ping'; from: number; s: number }
   | { t: 'pong'; from: number; s: number }
   | { t: 'snap'; k: number; s: GameState }

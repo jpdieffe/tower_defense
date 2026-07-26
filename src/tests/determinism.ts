@@ -16,12 +16,12 @@ import { Phase, type GameState, type SimOutput } from '../sim/types';
 
 const TICKS = 4000;
 
-/** The harness drives a full room: host plus two guests. */
-const PLAYER_COUNT = 3;
+/** The harness drives a full six-player room. */
+const PLAYER_COUNT = 6;
 
 function makeConfig(seed: number, mapId = 0, playerCount = PLAYER_COUNT): MatchConfig {
   const players = [];
-  for (let i = 0; i < playerCount; i++) players.push({ name: `P${i + 1}`, heroId: i });
+  for (let i = 0; i < playerCount; i++) players.push({ name: `P${i + 1}`, heroId: i % 5 });
   return {
     seed,
     mapId,

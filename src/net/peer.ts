@@ -67,16 +67,9 @@ export class HostTransport implements Transport {
   private peer: Peer | null = null;
   private conns = new Map<number, DataConnection>();
   private closed = false;
-  /** Once the match starts the roster is fixed, so late joiners are refused. */
-  private locked = false;
 
   get open(): boolean {
     return !this.closed && this.conns.size > 0;
-  }
-
-  /** Stop admitting guests. Called when the battle begins. */
-  lock(): void {
-    this.locked = true;
   }
 
   /** Occupied guest slots, ascending. */
@@ -96,11 +89,11 @@ export class HostTransport implements Transport {
   /** Returns false when the room is already full. */
   accept(conn: DataConnection): boolean {
     if (this.closed) return false;
-    const slot = this.locked ? -1 : this.freeSlot();
+    const slot = this.freeSlot();
     if (slot < 0) {
       const bye: NetMessage = {
         t: 'bye',
-        why: this.locked ? 'That game has already started.' : 'That room is already full.',
+        why: 'That room is already full.',
       };
       try { conn.send(JSON.stringify(bye)); } catch { /* nothing to do */ }
       window.setTimeout(() => { try { conn.close(); } catch { /* gone */ } }, 300);
