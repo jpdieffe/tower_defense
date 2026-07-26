@@ -431,6 +431,50 @@ input.code {
   background: linear-gradient(0deg, rgba(6, 9, 16, 0.95) 60%, rgba(6, 9, 16, 0));
 }
 
+.class-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.class-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.class-tab {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 6px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.class-tab.active {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.class-tab .cg {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.class-tab .cn {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.class-tab.active .cn {
+  color: #fff;
+}
+
 .build-bar {
   display: flex;
   gap: 6px;

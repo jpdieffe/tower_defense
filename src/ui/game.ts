@@ -8,7 +8,7 @@ import { enemyDef } from '../content/enemies';
 import { heroDef } from '../content/heroes';
 import { itemDef, relicDef } from '../content/items';
 import {
-  MAX_TOWER_LEVEL, TOWERS, computeTowerStats, towerBaseArt, towerDef,
+  MAX_TOWER_LEVEL, TOWERS, TOWER_CLASSES, computeTowerStats, towerBaseArt, towerDef,
   towerHeadArt, towerTitle, trackSplit, upgradeCost, type TowerTrack,
 } from '../content/towers';
 import { WAVE_MOD_INFO } from '../content/waves';
@@ -83,10 +83,11 @@ export class GameScreen {
     banner: HTMLElement;
     warning: HTMLElement;
     buildBar: HTMLElement;
+    classButtons: HTMLElement[];
     actionRow: HTMLElement;
     readyBtn: HTMLButtonElement;
     inspector: HTMLElement;
-    towerButtons: { btn: HTMLElement; defId: number }[];
+    towerButtons: { btn: HTMLElement; defId: number; cls: number }[];
     abilityBtn: HTMLElement;
     abilityCd: HTMLElement;
     itemsWrap: HTMLElement;
@@ -96,6 +97,8 @@ export class GameScreen {
   private overlay: HTMLElement | null = null;
   private bannerTimer = 0;
   private lastInspectKey = '';
+  /** Which class tab the build bar is showing. */
+  private buildClass = 0;
 
   constructor(options: GameScreenOptions) {
     this.opts = options;
@@ -405,8 +408,21 @@ export class GameScreen {
     const warning = el('div', { class: 'net-warning' });
 
     // ---- bottom
+    const classTabs = el('div', { class: 'class-tabs' });
+    const classButtons: HTMLElement[] = [];
+    TOWER_CLASSES.forEach((c, i) => {
+      const tab = tapButton(
+        'class-tab',
+        () => this.setBuildClass(i),
+        el('span', { class: 'cg', style: `color:${c.accent}` }, c.glyph),
+        el('span', { class: 'cn' }, c.name),
+      );
+      classButtons.push(tab);
+      classTabs.appendChild(tab);
+    });
+
     const buildBar = el('div', { class: 'build-bar' });
-    const towerButtons: { btn: HTMLElement; defId: number }[] = [];
+    const towerButtons: { btn: HTMLElement; defId: number; cls: number }[] = [];
     for (const t of TOWERS) {
       const btn = tapButton(
         'tower-btn',
@@ -415,7 +431,7 @@ export class GameScreen {
         el('div', { class: 'label' }, t.name),
         el('div', { class: 'cost' }, `${t.cost}`),
       );
-      towerButtons.push({ btn, defId: t.id });
+      towerButtons.push({ btn, defId: t.id, cls: t.cls });
       buildBar.appendChild(btn);
     }
 
@@ -442,7 +458,7 @@ export class GameScreen {
 
     const actionRow = el('div', { class: 'action-row' }, abilityBtn, itemsWrap, shopBtn, readyBtn);
     const inspector = el('div', { class: 'inspector' });
-    const bottom = el('div', { class: 'hud-bottom' }, buildBar, actionRow);
+    const bottom = el('div', { class: 'hud-bottom' }, classTabs, buildBar, actionRow);
 
     this.root.appendChild(top);
     this.root.appendChild(banner);
@@ -452,10 +468,13 @@ export class GameScreen {
 
     this.hud = {
       livesVal, waveVal, timerVal, goldSelf, matePills, netPill,
-      banner, warning, buildBar, actionRow, readyBtn, inspector, towerButtons,
+      banner, warning, buildBar, classButtons, actionRow, readyBtn, inspector, towerButtons,
       abilityBtn, abilityCd, itemsWrap, shopBtn,
     };
 
+    // Start on the tab matching the hero the player picked.
+    this.buildClass = Math.min(TOWER_CLASSES.length - 1, Math.max(0, this.me.hero.defId));
+    this.applyBuildClass();
     this.refreshItems();
     this.updateHud();
   }
@@ -595,6 +614,20 @@ export class GameScreen {
     for (const { btn, defId } of this.hud.towerButtons) {
       toggleClass(btn, 'selected', this.placingDefId === defId);
     }
+  }
+
+  private setBuildClass(cls: number): void {
+    this.buildClass = cls;
+    audio.play('click', { volume: 0.4 });
+    this.applyBuildClass();
+  }
+
+  private applyBuildClass(): void {
+    this.hud.classButtons.forEach((tab, i) => toggleClass(tab, 'active', i === this.buildClass));
+    for (const { btn, cls } of this.hud.towerButtons) {
+      btn.style.display = cls === this.buildClass ? '' : 'none';
+    }
+    this.hud.buildBar.scrollLeft = 0;
   }
 
   private armAbility(): void {
