@@ -632,13 +632,13 @@ input.code {
   color: var(--good);
 }
 
-.branch-row {
+.track-row {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
 }
 
-.branch-btn {
+.track-btn {
   flex: 1;
   padding: 10px;
   border-radius: 12px;
@@ -647,19 +647,44 @@ input.code {
   text-align: left;
 }
 
-.branch-btn .bn {
+.track-btn.power {
+  border-color: rgba(255, 145, 90, 0.55);
+  background: rgba(255, 120, 60, 0.12);
+}
+
+.track-btn.speed {
+  border-color: rgba(120, 205, 255, 0.55);
+  background: rgba(90, 180, 255, 0.12);
+}
+
+.track-btn .tn {
   font-weight: 800;
   font-size: 13px;
 }
 
-.branch-btn .bd {
+.track-btn .tp {
+  font-size: 12px;
+  letter-spacing: 3px;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.track-btn.power .tp {
+  color: #ffb163;
+}
+
+.track-btn.speed .tp {
+  color: #8fd3ff;
+}
+
+.track-btn .td {
   font-size: 11px;
   color: var(--muted);
   line-height: 1.3;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
-.branch-btn .bc {
+.track-btn .tc {
   font-size: 12px;
   font-weight: 900;
   color: var(--gold);

@@ -9,14 +9,14 @@ import { heroDef } from '../content/heroes';
 import { itemDef, relicDef } from '../content/items';
 import {
   MAX_TOWER_LEVEL, TOWERS, computeTowerStats, towerBaseArt, towerDef,
-  towerHeadArt, upgradeCost,
+  towerHeadArt, towerTitle, trackSplit, upgradeCost, type TowerTrack,
 } from '../content/towers';
 import { WAVE_MOD_INFO } from '../content/waves';
 import { getMap } from '../content/maps';
 import { hashState } from '../sim/state';
 import type { Lockstep } from '../net/lockstep';
 import {
-  buyShop, chooseBranch, moveHero, sell, setRally, setTargetMode, toggleReady,
+  Track, buyShop, moveHero, sell, setRally, setTargetMode, toggleReady,
   upgrade as upgradeCmd, useAbility, useItem, build as buildCmd,
 } from '../sim/commands';
 import {
@@ -26,6 +26,9 @@ import {
 import { clear, el, formatNumber, formatTime, setText, tapButton, toggleClass, vibrate } from './dom';
 
 const TOWER_GLYPH_SIZE = 34;
+
+/** Four upgrade slots, filled in as the track is picked. */
+const pips = (n: number): string => '●'.repeat(n) + '○'.repeat(Math.max(0, 4 - n));
 
 export interface GameScreenOptions {
   root: HTMLElement;
@@ -678,21 +681,21 @@ export class GameScreen {
       }
       return;
     }
-    const key = `${t.id}|${t.level}|${t.branch}|${t.targetMode}|${this.me.gold >= this.nextCost(t)}`;
+    const key = `${t.id}|${t.level}|${t.power}|${t.targetMode}|${this.me.gold >= this.nextCost(t)}`;
     if (key === this.lastInspectKey) return;
     this.lastInspectKey = key;
 
     const d = towerDef(t.defId);
-    const stats = computeTowerStats(t.defId, t.branch, t.level);
+    const stats = computeTowerStats(t.defId, t.power, t.level);
     const mine = t.owner === this.opts.localPlayer;
     const maxed = t.level >= MAX_TOWER_LEVEL;
-    const needsBranch = t.level === 3 && t.branch === 0;
+    const split = trackSplit(t.power, t.level);
     const cost = this.nextCost(t);
-    const branchName = t.branch > 0 ? d.branches[t.branch - 1].name : d.name;
+    const title = towerTitle(t.defId, t.power, t.level);
 
     const nextStats = maxed
       ? stats
-      : computeTowerStats(t.defId, t.branch, Math.min(MAX_TOWER_LEVEL, t.level + 1));
+      : computeTowerStats(t.defId, t.power, Math.min(MAX_TOWER_LEVEL, t.level + 1));
 
     clear(this.hud.inspector);
     this.hud.inspector.classList.add('show');
@@ -701,7 +704,7 @@ export class GameScreen {
       el(
         'div',
         { class: 'inspector-head' },
-        el('span', { class: 'nm' }, branchName),
+        el('span', { class: 'nm' }, title),
         el('span', { class: 'lv' }, `Lv ${t.level}${maxed ? ' MAX' : ''}`),
         el(
           'span',
@@ -758,34 +761,38 @@ export class GameScreen {
       );
     }
 
-    if (needsBranch && mine) {
-      const row = el('div', { class: 'branch-row' });
-      d.branches.forEach((b, i) => {
+    if (mine && !maxed) {
+      const row = el('div', { class: 'track-row' });
+      const tracks: Array<[number, string, TowerTrack, number, string]> = [
+        [Track.Power, '⚔ Power', d.power, split.power, `+${d.power.pct}% damage`],
+        [Track.Speed, '⚡ Speed', d.speed, split.speed, `+${d.speed.pct}% fire rate`],
+      ];
+      for (const [track, label, def, picks, gain] of tracks) {
+        const next = picks + 1;
+        const perk = next === 2 ? def.t2Desc : next === 4 ? def.t4Desc : '';
         const btn = tapButton(
-          'branch-btn',
+          `track-btn ${track === Track.Power ? 'power' : 'speed'}`,
           () => {
-            this.ls.queue(chooseBranch(this.opts.localPlayer, t.id, i + 1));
+            this.ls.queue(upgradeCmd(this.opts.localPlayer, t.id, track));
             this.lastInspectKey = '';
           },
-          el('div', { class: 'bn' }, b.name),
-          el('div', { class: 'bd' }, b.desc),
-          el('div', { class: 'bc' }, `${cost}g`),
+          el('div', { class: 'tn' }, label),
+          el('div', { class: 'tp' }, pips(picks)),
+          el('div', { class: 'td' }, perk ? `${gain} · ${perk}` : gain),
+          el('div', { class: 'tc' }, `${cost}g`),
         );
         if (this.me.gold < cost) btn.setAttribute('aria-disabled', 'true');
         row.appendChild(btn);
-      });
+      }
       this.hud.inspector.appendChild(row);
+    } else if (t.level > 1) {
+      this.hud.inspector.appendChild(
+        el('div', { class: 'muted', style: 'margin-bottom:8px' },
+          `⚔ Power ${pips(split.power)}   ⚡ Speed ${pips(split.speed)}`),
+      );
     }
 
     const buttons: HTMLElement[] = [];
-    if (mine && !needsBranch && !maxed) {
-      const b = tapButton('btn primary', () => {
-        this.ls.queue(upgradeCmd(this.opts.localPlayer, t.id));
-        this.lastInspectKey = '';
-      }, `Upgrade · ${cost}g`);
-      if (this.me.gold < cost) b.setAttribute('aria-disabled', 'true');
-      buttons.push(b);
-    }
     if (mine) {
       buttons.push(
         stats.barracks

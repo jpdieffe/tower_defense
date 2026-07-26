@@ -9,7 +9,7 @@
 import { fxMul, fxDiv, fxSqrt, fx, FX_ONE } from '../core/fixed';
 import { isBuildable, buildMapRuntime } from '../content/maps';
 import { TOWERS } from '../content/towers';
-import { build, chooseBranch, toggleReady, upgrade, moveHero, type Command } from '../sim/commands';
+import { build, toggleReady, upgrade, moveHero, type Command } from '../sim/commands';
 import { step } from '../sim/sim';
 import { cloneState, createState, hashState, type MatchConfig } from '../sim/state';
 import { Phase, type GameState, type SimOutput } from '../sim/types';
@@ -66,8 +66,7 @@ function scriptedCommands(tick: number, state: GameState): Command[] {
       const mine = state.towers.filter((t) => t.owner === p && t.temp === 0);
       if (mine.length === 0) continue;
       const t = mine[(tick / 53) % mine.length | 0];
-      if (t.level === 3 && t.branch === 0) out.push(chooseBranch(p, t.id, ((tick / 53) % 2 | 0) + 1));
-      else out.push(upgrade(p, t.id));
+      out.push(upgrade(p, t.id, (tick / 53 + p) % 2 | 0));
     }
   }
 

@@ -28,7 +28,7 @@ import {
   type RelicMods,
 } from '../content/items';
 import { generateWave, WaveMod } from '../content/waves';
-import { CmdType, type Command } from './commands';
+import { CmdType, Track, type Command } from './commands';
 import {
   BUILD_PHASE_TICKS, DIFFICULTIES, findEnemy, findTower, nextId, refreshShop,
 } from './state';
@@ -131,8 +131,7 @@ function applyCommand(ctx: Ctx, c: Command): void {
 
   switch (c.t) {
     case CmdType.Build: return cmdBuild(ctx, p, c.a, c.b, c.c);
-    case CmdType.Upgrade: return cmdUpgrade(ctx, p, c.a);
-    case CmdType.ChooseBranch: return cmdBranch(ctx, p, c.a, c.b);
+    case CmdType.Upgrade: return cmdUpgrade(ctx, p, c.a, c.b);
     case CmdType.Sell: return cmdSell(ctx, p, c.a);
     case CmdType.SetTargetMode: return cmdTargetMode(ctx, p, c.a, c.b);
     case CmdType.SetRally: return cmdSetRally(ctx, p, c.a, c.b, c.c);
@@ -184,7 +183,7 @@ function cmdBuild(ctx: Ctx, p: PlayerState, defId: number, cx: number, cy: numbe
     id: nextId(s),
     owner: p.idx,
     defId,
-    branch: 0,
+    power: 0,
     level: 1,
     cx, cy,
     x,
@@ -211,12 +210,11 @@ function discountedCost(ctx: Ctx, p: PlayerState, cost: number): number {
   return Math.max(1, cost - pct(cost, disc));
 }
 
-function cmdUpgrade(ctx: Ctx, p: PlayerState, towerId: number): void {
+function cmdUpgrade(ctx: Ctx, p: PlayerState, towerId: number, track: number): void {
   const t = findTower(ctx.s, towerId);
   if (!t || t.owner !== p.idx || t.temp > 0) return;
   if (t.level >= MAX_TOWER_LEVEL) return;
-  // Level 3 -> 4 requires picking a branch instead.
-  if (t.level === 3 && t.branch === 0) return;
+  if (track !== Track.Speed && track !== Track.Power) return;
   const raw = upgradeCost(t.defId, t.level);
   const cost = discountedCost(ctx, p, raw);
   if (p.gold < cost) {
@@ -226,24 +224,7 @@ function cmdUpgrade(ctx: Ctx, p: PlayerState, towerId: number): void {
   p.gold -= cost;
   t.invested += cost;
   t.level++;
-  emit(ctx, EventKind.TowerUpgraded, t.x, t.y, t.defId, t.level, p.idx);
-}
-
-function cmdBranch(ctx: Ctx, p: PlayerState, towerId: number, branch: number): void {
-  const t = findTower(ctx.s, towerId);
-  if (!t || t.owner !== p.idx || t.temp > 0) return;
-  if (t.level !== 3 || t.branch !== 0) return;
-  if (branch !== 1 && branch !== 2) return;
-  const raw = upgradeCost(t.defId, 3);
-  const cost = discountedCost(ctx, p, raw);
-  if (p.gold < cost) {
-    deny(ctx, p, t.x, t.y);
-    return;
-  }
-  p.gold -= cost;
-  t.invested += cost;
-  t.branch = branch;
-  t.level = 4;
+  if (track === Track.Power) t.power++;
   emit(ctx, EventKind.TowerUpgraded, t.x, t.y, t.defId, t.level, p.idx);
 }
 
@@ -270,7 +251,7 @@ function cmdTargetMode(ctx: Ctx, p: PlayerState, towerId: number, mode: number):
 function cmdSetRally(ctx: Ctx, p: PlayerState, towerId: number, x: Fx, y: Fx): void {
   const t = findTower(ctx.s, towerId);
   if (!t || t.owner !== p.idx) return;
-  const st = cachedStats(t.defId, t.branch, t.level);
+  const st = cachedStats(t.defId, t.power, t.level);
   if (!st.barracks) return;
   const spot = nearestLaneSpot(ctx.rt, x, y);
   if (fxDist2(spot.x, spot.y, t.x, t.y) > fxMul(st.range, st.range)) {
@@ -933,11 +914,11 @@ function grantXp(ctx: Ctx, p: PlayerState, amount: number): void {
 
 const statsCache = new Map<number, TowerStats>();
 
-function cachedStats(defId: number, branch: number, level: number): TowerStats {
-  const key = defId * 100 + branch * 10 + level;
+function cachedStats(defId: number, power: number, level: number): TowerStats {
+  const key = defId * 100 + power * 10 + level;
   let st = statsCache.get(key);
   if (!st) {
-    st = computeTowerStats(defId, branch, level);
+    st = computeTowerStats(defId, power, level);
     statsCache.set(key, st);
   }
   return st;
@@ -953,7 +934,7 @@ function computeAuras(ctx: Ctx): void {
 
   for (let i = 0; i < n; i++) {
     const src = s.towers[i];
-    const st = cachedStats(src.defId, src.branch, src.level);
+    const st = cachedStats(src.defId, src.power, src.level);
     if (!st.isSupport) continue;
     const r2 = fxMul(st.range, st.range);
     for (let j = 0; j < n; j++) {
@@ -981,7 +962,7 @@ function computeAuras(ctx: Ctx): void {
 
 /** Base stats plus relic, aura and overload modifiers, as an owned copy. */
 function effStats(ctx: Ctx, t: Tower, index: number): TowerStats {
-  const st = { ...cachedStats(t.defId, t.branch, t.level) };
+  const st = { ...cachedStats(t.defId, t.power, t.level) };
   const m = ctx.mods[t.owner] ?? emptyMods();
 
   let dmgPct = m.damagePct + (ctx.auraDmg[index] ?? 0);
@@ -1379,7 +1360,7 @@ function updateSoldiers(ctx: Ctx): void {
 
   for (let i = 0; i < s.towers.length; i++) {
     const t = s.towers[i];
-    if (!cachedStats(t.defId, t.branch, t.level).barracks) continue;
+    if (!cachedStats(t.defId, t.power, t.level).barracks) continue;
     const st = effStats(ctx, t, i);
     for (const sd of s.soldiers) {
       if (sd.towerId !== t.id || sd.hp <= 0) continue;
@@ -1615,7 +1596,7 @@ function spawnSentry(ctx: Ctx, owner: number, x: Fx, y: Fx, duration: number): v
     id: nextId(s),
     owner,
     defId: TOWER.Guard,
-    branch: 2,
+    power: 1,
     level: 4,
     cx, cy,
     x: cellCenterFx(cx),

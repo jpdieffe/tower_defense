@@ -154,7 +154,8 @@ export interface Tower {
   id: number;
   owner: number;
   defId: number;
-  branch: number;
+  /** How many upgrades went into the Power track. The rest went into Speed. */
+  power: number;
   level: number;
   cx: number; cy: number;
   x: Fx; y: Fx;

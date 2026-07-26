@@ -223,7 +223,7 @@ export function hashState(s: GameState): number {
 
   for (const t of s.towers) {
     h = mix(h, t.id);
-    h = mix(h, t.defId * 97 + t.branch * 13 + t.level);
+    h = mix(h, t.defId * 97 + t.power * 13 + t.level);
     h = mix(h, t.cx * 64 + t.cy);
     h = mix(h, t.cd);
     h = mix(h, t.targetMode);

@@ -449,7 +449,7 @@ export class Renderer {
       const selected = t.id === view.selectedTowerId;
 
       if (selected) {
-        const stats = computeTowerStats(t.defId, t.branch, t.level);
+        const stats = computeTowerStats(t.defId, t.power, t.level);
         this.drawRange(x, y, fxToFloat(stats.range) * cell, d.accent);
         if (stats.barracks) this.drawRallyPost(t.rx, t.ry, x, y, d.accent);
       }
@@ -465,7 +465,7 @@ export class Renderer {
 
       atlas.draw(ctx, towerBaseArt(t.owner), x, y, cell * 0.98, 0, t.temp > 0 ? 0.7 : 1);
 
-      const art = towerHeadArt(t.defId, t.branch, t.level);
+      const art = towerHeadArt(t.defId, t.power, t.level);
       const rot = Math.atan2(fxToFloat(t.dy), fxToFloat(t.dx)) + Math.PI / 2;
       const recoil = t.fireAnim > 0 ? 0.9 : 1;
       atlas.draw(ctx, art.head, x, y, cell * art.scale * recoil, rot, t.temp > 0 ? 0.75 : 1);
@@ -474,7 +474,7 @@ export class Renderer {
       this.drawLevelPips(x, y + cell * 0.42, t.level, d.accent);
 
       if (t.pulse > 0) {
-        const stats = computeTowerStats(t.defId, t.branch, t.level);
+        const stats = computeTowerStats(t.defId, t.power, t.level);
         const rr = fxToFloat(stats.splash) * cell * (1 - t.pulse / 10);
         ctx.save();
         ctx.globalAlpha = t.pulse / 10 * 0.6;
@@ -563,7 +563,7 @@ export class Renderer {
     for (const sd of state.soldiers) {
       const t = state.towers.find((x) => x.id === sd.towerId);
       if (!t) continue;
-      const stats = computeTowerStats(t.defId, t.branch, t.level);
+      const stats = computeTowerStats(t.defId, t.power, t.level);
       const x = this.lerpPx(sd.px, sd.x, alpha);
       const y = this.lerpPy(sd.py, sd.y, alpha);
       const size = cell * fxToFloat(stats.unitScale);

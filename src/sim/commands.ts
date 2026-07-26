@@ -21,7 +21,6 @@ export const CmdType = {
   Noop: 0,
   Build: 1,
   Upgrade: 2,
-  ChooseBranch: 3,
   Sell: 4,
   SetTargetMode: 5,
   MoveHero: 6,
@@ -40,11 +39,11 @@ export function cmd(t: number, p: number, a = 0, b = 0, c = 0, d = 0): Command {
 export const build = (p: number, defId: number, cx: number, cy: number): Command =>
   cmd(CmdType.Build, p, defId, cx, cy);
 
-export const upgrade = (p: number, towerId: number): Command =>
-  cmd(CmdType.Upgrade, p, towerId);
+/** Which upgrade track an Upgrade command pays into. */
+export const Track = { Speed: 0, Power: 1 } as const;
 
-export const chooseBranch = (p: number, towerId: number, branch: number): Command =>
-  cmd(CmdType.ChooseBranch, p, towerId, branch);
+export const upgrade = (p: number, towerId: number, track: number): Command =>
+  cmd(CmdType.Upgrade, p, towerId, track);
 
 export const sell = (p: number, towerId: number): Command =>
   cmd(CmdType.Sell, p, towerId);

@@ -271,7 +271,7 @@ export function renderHelp(root: HTMLElement, onBack: () => void): void {
         el('div', { style: `font-weight:800;color:${t.accent}` }, `${t.name} — ${t.cost}g`),
         el('div', { class: 'muted' }, `${t.role}. ${t.desc}`),
         el('div', { class: 'muted', style: 'font-size:11.5px' },
-          `Tier 4 choice: ${t.branches[0].name} (${t.branches[0].desc}) or ${t.branches[1].name} (${t.branches[1].desc})`),
+          `⚔ Power → ${t.power.name}: ${t.power.desc} · ⚡ Speed → ${t.speed.name}: ${t.speed.desc}`),
       ),
     );
   }
