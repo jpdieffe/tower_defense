@@ -349,6 +349,15 @@ class App {
   // ================================================================ lobby
 
   private showLobby(): void {
+    // Remote picks rebuild the lobby so ally/ready states stay current. Keep
+    // that DOM refresh from yanking this player's independently scrolled
+    // chooser back to the hero cards at the top.
+    const previousScreen = this.screen === 'lobby'
+      ? this.ui.querySelector<HTMLElement>('.screen')
+      : null;
+    const savedScroll = previousScreen
+      ? { top: previousScreen.scrollTop, left: previousScreen.scrollLeft }
+      : null;
     this.screen = 'lobby';
     const me = this.me();
     const model: LobbyModel = {
@@ -388,6 +397,17 @@ class App {
         this.showLobby();
       },
     });
+
+    if (savedScroll) {
+      const restoreScroll = (): void => {
+        const screen = this.ui.querySelector<HTMLElement>('.screen');
+        if (screen) screen.scrollTo(savedScroll.left, savedScroll.top);
+      };
+      // Restore once immediately and again after layout. Mobile browsers can
+      // run focus/scroll anchoring after the old pressed button is removed.
+      restoreScroll();
+      window.requestAnimationFrame(restoreScroll);
+    }
   }
 
   /** Publish our own seat, and (as host) the whole roster. */
