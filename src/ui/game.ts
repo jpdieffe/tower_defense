@@ -168,7 +168,9 @@ export class GameScreen {
     const dt = Math.min(64, now - this.lastFrame);
     this.lastFrame = now;
 
-    const alpha = this.paused ? 1 : this.ls.update(dt);
+    // A multiplayer pause is only a local menu; this client must keep
+    // simulating and publishing inputs or every other player stalls.
+    const alpha = this.paused && !this.opts.multiplayer ? 1 : this.ls.update(dt);
 
     if (this.opts.multiplayer) {
       this.pingTimer += dt;
@@ -373,20 +375,19 @@ export class GameScreen {
     const waveVal = el('span', {}, '0');
     const timerVal = el('span', {}, '');
     const goldSelf = el('span', {}, '0');
-    const netPill = el('div', { class: 'pill' }, '');
+    const netPill = el('div', { class: 'pill net-pill' }, '');
 
     const selfColor = PLAYER_COLORS[this.opts.localPlayer];
     const matePills: { idx: number; gold: HTMLElement }[] = [];
-    const mateNodes: HTMLElement[] = [];
+    const mateStrip = el('div', { class: 'mate-strip' });
     if (this.opts.multiplayer) {
       for (let idx = 0; idx < this.state.players.length; idx++) {
         if (idx === this.opts.localPlayer) continue;
         const gold = el('span', {}, '0');
-        mateNodes.push(el(
+        mateStrip.appendChild(el(
           'div',
-          { class: `pill p${idx + 1}` },
-          el('small', {}, this.opts.playerNames[idx] ?? 'Ally'),
-          gold,
+          { class: `pill mate-pill p${idx + 1}`, title: this.opts.playerNames[idx] ?? 'Ally' },
+          el('small', {}, `P${idx + 1}`), '💰', gold,
         ));
         matePills.push({ idx, gold });
       }
@@ -399,17 +400,17 @@ export class GameScreen {
       el('div', { class: 'pill' }, el('small', {}, 'Wave'), waveVal),
       el('div', { class: 'pill' }, timerVal),
       el('div', { class: 'spacer' }),
-      ...mateNodes,
       el(
         'div',
-        { class: `pill p${this.opts.localPlayer + 1}` },
+        { class: `pill self-pill p${this.opts.localPlayer + 1}` },
         el('small', { style: `color:${selfColor}` }, 'You'),
         '💰',
         goldSelf,
       ),
       netPill,
+      this.opts.multiplayer ? mateStrip : null,
       this.opts.multiplayer && this.opts.roomCode
-        ? el('div', { class: 'pill room-pill', title: 'Room code' }, `ROOM ${this.opts.roomCode}`)
+        ? el('div', { class: 'pill room-pill', title: 'Room code', 'data-code': this.opts.roomCode }, `ROOM ${this.opts.roomCode}`)
         : null,
       tapButton('icon-btn', () => this.togglePause(), '⏸'),
     );

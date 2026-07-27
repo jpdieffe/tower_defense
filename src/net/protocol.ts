@@ -1,7 +1,7 @@
 import type { MatchConfig } from '../sim/state';
 import type { GameState } from '../sim/types';
 
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 /** Host plus five guests. */
 export const MAX_PLAYERS = 6;
@@ -35,6 +35,7 @@ export type NetMessage =
   | { t: 'resume'; match: MatchConfig; inputDelay: number; state: GameState; epoch: number }
   /** Commands for a future tick. Sent every tick, even when empty. */
   | { t: 'inp'; from: number; k: number; c: number[][]; e: number }
+  | { t: 'inps'; from: number; frames: { k: number; c: number[][] }[]; e: number }
   | { t: 'hash'; from: number; k: number; h: number; e: number }
   | { t: 'ping'; from: number; s: number }
   | { t: 'pong'; from: number; s: number }
@@ -43,7 +44,7 @@ export type NetMessage =
 
 /** Messages the host forwards between guests so the mesh looks fully connected. */
 export function isRelayed(msg: NetMessage): boolean {
-  return msg.t === 'inp' || msg.t === 'hash';
+  return msg.t === 'inp' || msg.t === 'inps' || msg.t === 'hash';
 }
 
 export interface Transport {

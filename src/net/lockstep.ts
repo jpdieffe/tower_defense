@@ -51,6 +51,7 @@ export class Lockstep {
   /** tick -> per-player packed command lists (null = not yet received). */
   private inbox = new Map<number, (number[][] | null)[]>();
   private pending: Command[] = [];
+  private outbound: { k: number; c: number[][] }[] = [];
   private out: SimOutput = { events: [] };
   private accumulator = 0;
   private lastLocalHash = new Map<number, number>();
@@ -103,7 +104,17 @@ export class Lockstep {
       case 'inp': {
         if (msg.e !== this.epoch) break;
         if (!this.isPeer(msg.from)) break;
+        if (msg.k < this.state.tick) break;
         this.slotFor(msg.k)[msg.from] = msg.c;
+        break;
+      }
+      case 'inps': {
+        if (msg.e !== this.epoch) break;
+        if (!this.isPeer(msg.from)) break;
+        for (const frame of msg.frames) {
+          if (frame.k < this.state.tick) continue;
+          this.slotFor(frame.k)[msg.from] = frame.c;
+        }
         break;
       }
       case 'hash': {
@@ -170,7 +181,13 @@ export class Lockstep {
     this.pending.length = 0;
     this.slotFor(target)[this.localPlayer] = packed;
     this.publishedThrough = Math.max(this.publishedThrough, target);
-    this.transport?.send({ t: 'inp', from: this.localPlayer, k: target, c: packed, e: this.epoch });
+    if (this.transport) this.outbound.push({ k: target, c: packed });
+  }
+
+  private flushOutbound(): void {
+    if (!this.transport || this.outbound.length === 0) return;
+    const frames = this.outbound.splice(0);
+    this.transport.send({ t: 'inps', from: this.localPlayer, frames, e: this.epoch });
   }
 
   /**
@@ -191,9 +208,10 @@ export class Lockstep {
     const target = this.state.tick + this.inputDelay + ticks;
     for (let k = this.publishedThrough + 1; k <= target; k++) {
       this.slotFor(k)[this.localPlayer] = [];
-      this.transport.send({ t: 'inp', from: this.localPlayer, k, c: [], e: this.epoch });
+      this.outbound.push({ k, c: [] });
     }
     if (target > this.publishedThrough) this.publishedThrough = target;
+    this.flushOutbound();
   }
 
   /** Highest tick for which every player's input is already known. */
@@ -243,6 +261,8 @@ export class Lockstep {
     } else if (this.stalled) {
       this.stalled = false;
     }
+
+    if (this.outbound.length >= 2 || blocked) this.flushOutbound();
 
     return Math.min(1, this.accumulator / TICK_MS);
   }
@@ -314,6 +334,7 @@ export class Lockstep {
     this.state.tick = tick;
     this.inbox.clear();
     this.pending.length = 0;
+    this.outbound.length = 0;
     this.publishedThrough = tick + this.inputDelay - 1;
     for (let k = tick; k < tick + this.inputDelay; k++) {
       this.inbox.set(k, new Array(this.playerCount).fill([]) as number[][][]);
